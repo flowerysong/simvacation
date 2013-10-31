@@ -4,7 +4,7 @@
 /*
  * simvacation.h
  *
- * Copyright (c) 2007 Regents of The University of Michigan.
+ * Copyright (c) 2007, 2013 Regents of The University of Michigan.
  * All Rights Reserved.
  *
  * Permission to use, copy, modify, and distribute this software and
@@ -18,6 +18,11 @@
  * implied warranties of any kind.
  *
  */
+
+#define HEADER_UNKNOWN      0
+#define HEADER_RECIPIENT    1
+#define HEADER_SUBJECT      2
+#define HEADER_NOREPLY      3
 
 #define VIT     "__VACATION__INTERVAL__TIMER__"
 
@@ -37,6 +42,7 @@
 #define ATTR_VACMSG     "vacationMessage"
 #define ATTR_CN         "cn"
 #define DOMAIN          "umich.edu"
+/* FIXME: Add Auto: to Subject? */
 #define SUBJECTLINE     "Subject: Out of email contact"
 
 #endif

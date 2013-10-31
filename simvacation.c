@@ -360,86 +360,132 @@ readheaders( DB * dbp )
 {
     ALIAS *cur;
     char *p;
-    int tome, cont;
+    int tome, state;
     char buf[MAXLINE];
 
-    tome = cont = 0;
+    state = HEADER_UNKNOWN;
+    tome = 0;
     while ( fgets( buf, sizeof( buf ), stdin ) && *buf != '\n' ) {
-	switch( *buf ) {
-	case 'F':		/* "From " */
-	    cont = 0;
-	    if ( !strncmp(buf, "From ", 5 )) {
-		for ( p = buf + 5; *p && *p != ' '; ++p );
-		*p = '\0';
-		(void) strcpy( from, buf + 5 );
-		if (( p = index( from, '\n' )))
-		    *p = '\0';
-		if ( junkmail()) {
-		    syslog( LOG_DEBUG, "ignoring junkmail from %s", from );
-		    myexit( dbp, 0 );
-		}
-	    }
-	    break;
+        if ( strncasecmp( buf, "From ", 5 ) == 0 ) {
+            state = HEADER_UNKNOWN;
+            /* FIXME: What is this looking at? */
+	    for ( p = buf + 5; *p && *p != ' '; ++p );
+            *p = '\0';
+            (void) strcpy( from, buf + 5 );
+            if (( p = index( from, '\n' )))
+                *p = '\0';
+            /* FIXME: junkmail? */
+            if ( junkmail()) {
+                syslog( LOG_DEBUG, "ignoring junkmail from %s", from );
+                myexit( dbp, 0 );
+            }
+        }
+        /* RFC 3834 2
+         * Automatic responses SHOULD NOT be issued in response to any
+         * message which contains an Auto-Submitted header field (see below),
+         * where that field has any value other than "no"
+         */
+        else if ( strncasecmp( buf, "Auto-Submitted:", 15 ) == 0 ) {
+            state = HEADER_NOREPLY;
+            /* FIXME: implement, only send reply if value is no */
+        }
+        /* RFC 3834 2
+         * A responder MAY refuse to send a response to a subject message
+         * which contains any header or content which makes it appear to the
+         * responder that a response would not be appropriate.
+         */
+        else if ( strncasecmp( buf, "List-", 5 ) == 0 ) {
+            /* RFC 3834 2
+             * For similar reasons, a responder MAY ignore any subject message
+             * with a List-* field [RFC2369].
+             */
+            state = HEADER_NOREPLY;
+            /* FIXME: implement */
+        }
+        else if ( strncasecmp( buf, "Precedence", 10 ) == 0 ) {
+            /* RFC 3834 2 
+             * For instance, if the subject message contained a
+             * Precedence header field [RFC2076] with a value of
+             * "list" the responder might guess that the traffic had
+             * arrived from a mailing list, and would not respond if
+             * the response were only intended for personal messages.
+             * [...]
+             * (Because Precedence is not a standard header field, and
+             * its use and interpretation vary widely in the wild,
+             * no particular responder behavior in the presence of
+             * Precedence is recommended by this specification.
+             */
+            state = HEADER_NOREPLY;
+	    if (( buf[10] = ':' || buf[10] == ' ' || buf[10] == '\t') &&
+                    ( p = index( buf, ':' ))) {
+                while ( *++p && isspace( *p ));
+                if ( !*p ) {
+                    break;
+                }
+                if ( strncasecmp( p, "junk", 4 ) == 0 ||
+                     strncasecmp( p, "bulk", 4 ) == 0 ||
+                     strncasecmp( p, "list", 4 ) == 0 ) {
+                    syslog( LOG_DEBUG, "Ignoring Precedence %s from %s",
+                            p, from );
+                    myexit( dbp, 0 );
+                }
+            }
+        }
+        else if ( strncasecmp( buf, "X-Auto-Response-Suppress:", 25 ) == 0 ) {
+            /* FIXME: implement, find out what valid values are */
+            state = HEADER_NOREPLY;
+        }
+        else if ( strncasecmp( buf, "Cc:", 3 ) == 0 ) {
+            state = HEADER_RECIPIENT;
+        }
+        else if ( strncasecmp( buf, "To:", 3 ) == 0 ) {
+            state = HEADER_RECIPIENT;
+        }
+        else if ( strncasecmp( buf, "Subject:", 8 ) == 0 ) {
+            state = HEADER_SUBJECT;
+	}
+        else if ( !isspace( *buf )) {
+            /* Not a continuation of the previous header line, reset flag
+             *
+             * RFC 2822 2.2.3
+             * Unfolding is accomplished by simply removing any CRLF
+             * that is immediately followed by WSP.
+             */
+            state = HEADER_UNKNOWN;
+        }
 
-	case 'P':		/* "Precedence:" */
-	    cont = 0;
-	    if ( strncasecmp( buf, "Precedence", 10 ) ||
-			( buf[10] != ':' && buf[10] != ' ' && buf[10] != '\t' )) {
-		break;
-	    }
-	    if ( !( p = index( buf, ':' ))) {
-		break;
-	    }
-	    while ( *++p && isspace( *p ));
-	    if ( !*p ) {
-		break;
-	    }
-	    if ( !strncasecmp( p, "junk", 4 ) ||
-		 !strncasecmp( p, "bulk", 4 )) {
-		syslog( LOG_DEBUG, "ignoring bulkmail from %s", from );
-		myexit( dbp, 0 );
-	    }
-	    break;
-
-	case 'C':		/* "Cc:" */
-	    if ( strncmp( buf, "Cc:", 3 )) {
-		break;
-	    }
-	    cont = 1;
-	    goto findme;
-
-	case 'T':		/* "To:" */
-	    if ( strncmp( buf, "To:", 3 )) {
-		break;
-	    }
-	    cont = 1;
-	    goto findme;
-
-	case 'S':		/* "Subject:" */
-	    if ( !strncmp( buf, "Subject:", 8 )) {
-		p = index( buf, ':' );
-		while ( p && *++p && isspace( *p ));
-		if ( *p ) {
-		    strcpy( subject, p );
-		}
-		/* get rid of newline */
-		p = index( subject, '\n' );
-		if ( p ) {
-		    *p = '\0';
-		}
-	    }
-	    break;
-
-	default:
-	    if ( !isspace( *buf ) || !cont || tome ) {
-		cont = 0;
-		break;
-	    }
-findme:	    for ( cur = names; !tome && cur; cur = cur->next ) {
+        switch ( state ) {
+        case HEADER_RECIPIENT:
+            if ( tome ) {
+                break;
+            }
+            for ( cur = names; !tome && cur; cur = cur->next ) {
 		tome += nsearch( cur->name, buf );
 	    }
+            break;
+        case HEADER_SUBJECT:
+            if ( *subject ) {
+                /* Continuation of previous header line */
+                p = buf;
+            }
+            else {
+                /* Remove Subject: */
+                p = index( buf, ':' );
+                while ( p && *++p && isspace( *p ));
+            }
+
+            if ( *p ) {
+                strncat( subject, p, MAXLINE - strlen( subject ) - 1 );
+            }
+
+            /* get rid of newline */
+            p = index( subject, '\n' );
+            if ( p ) {
+                *p = '\0';
+            }
+            break;
 	}
-    }	
+    }
 
     if ( !tome ) {
 	syslog( LOG_DEBUG, "mail from \"%s\" not to user \"%s\"\n",
@@ -504,7 +550,7 @@ junkmail()
     int len;
     char *p;
 
-    /*
+    /* FIXME
      * This is mildly amusing, and I'm not positive it's right; trying
      * to find the "real" name of the sender, assuming that addresses
      * will be some variant of:
@@ -662,6 +708,8 @@ sendmessage( char *myname, char **vmsg )
      * Our stdout should now be hooked up to sendmail's stdin.
      * Generate headers and print the vacation message.
      */
+    /* FIXME: Add RFC 3834 "Auto-Submitted: auto-replied"
+     * In-Reply-To:, References: */
     printf( "From: %s <%s>\n", xdn[0], myname );
     printf( "To: %s\n", from );
     printf( SUBJECTLINE );
