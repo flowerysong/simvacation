@@ -443,7 +443,7 @@ findme:	    for ( cur = names; !tome && cur; cur = cur->next ) {
 
     if ( !tome ) {
 	syslog( LOG_DEBUG, "mail from \"%s\" not to user \"%s\"\n",
-			from ? from : "(unknown)", dn );
+			*from ? from : "(unknown)", dn );
 	myexit( dbp, 0 );
     }
     if ( !*from ) {
