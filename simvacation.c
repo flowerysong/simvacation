@@ -1,9 +1,8 @@
 /*
- * Copyright (c) 2004 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
- *
+ * Copyright (c) 2004, 2013 Regents of The University of Michigan.
  * Copyright (c) 1983, 1987 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983 Eric P. Allman.
+ * All Rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,23 +33,6 @@
  * SUCH DAMAGE.
  */
 
-
-#ifndef lint
-char copyright[] =
-"@(#) Copyright (c) 1983, 1987 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
-
-#ifndef lint
-/*static char sccsid[] = "from: @(#)vacation.c	5.19 (Berkeley) 3/23/91";*/
-static char rcsid[] = "$Id: simvacation.c,v 1.5 2007/10/17 08:13:07 epcjr Exp $";
-#endif /* not lint */
-
-/*
-**  Vacation
-**  Copyright (c) 1983  Eric P. Allman
-**  Berkeley, California
-*/
 
 #include <sys/param.h>
 #include <sys/stat.h>

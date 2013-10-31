@@ -1,11 +1,22 @@
 /*
- * vacreport.c
+ * simvacreport.c
  *
  * Print a report of who's on vacation, and the list of recipients they've
  * sent vacation messages to.
  *
  * Copyright (c) 2005 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
+ * All Rights Reserved.
+ *
+ * Permission to use, copy, modify, and distribute this software and
+ * its documentation for any purpose and without fee is hereby granted,
+ * provided that the above copyright notice appears in all copies and
+ * that both that copyright notice and this permission notice appear
+ * in supporting documentation, and that the name of The University
+ * of Michigan not be used in advertising or publicity pertaining to
+ * distribution of the software without specific, written prior
+ * permission. This software is supplied as is without expressed or
+ * implied warranties of any kind.
+ *
  */
 
 #include <stdio.h>

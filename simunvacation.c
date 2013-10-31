@@ -1,9 +1,20 @@
 /*
- * unvacate.c - clean up database files for people who are no longer
+ * simunvacation.c - clean up database files for people who are no longer
  * "on vacation".
  *
- * Copyright (c) 2004 Regents of The University of Michigan.
- * All Rights Reserved.  See COPYRIGHT.
+ * Copyright (c) 2004, 2013 Regents of The University of Michigan.
+ * All Rights Reserved.
+ *
+ * Permission to use, copy, modify, and distribute this software and
+ * its documentation for any purpose and without fee is hereby granted,
+ * provided that the above copyright notice appears in all copies and
+ * that both that copyright notice and this permission notice appear
+ * in supporting documentation, and that the name of The University
+ * of Michigan not be used in advertising or publicity pertaining to
+ * distribution of the software without specific, written prior
+ * permission. This software is supplied as is without expressed or
+ * implied warranties of any kind.
+ *
  */
 
 #include <stdio.h>
@@ -62,7 +73,7 @@ main( int argc, char **argv)
     struct uniq_list **unp = &uniqnames;
     char *perr;
 
-    openlog( "unvacate", LOG_PID, LOG_VACATION );
+    openlog( "simunvacation", LOG_PID, LOG_VACATION );
     /*
      * Timeout values for LDAP searches
      */
@@ -208,7 +219,7 @@ main( int argc, char **argv)
 
 usage()
 {
-    fprintf( stderr, "usage: unvacate [-v vbdir] [-s searchbase]\n" );
+    fprintf( stderr, "usage: simunvacation [-v vbdir] [-s searchbase]\n" );
     fprintf( stderr, "                [-h ldap_host] [-p ldap_port]\n" );
     exit( 1 );
 }
