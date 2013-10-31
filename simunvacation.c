@@ -102,7 +102,7 @@ main( int argc, char **argv)
      * Connect to ldap server and bind
      */
     if (( ld = ldap_open( ldap_host, ldap_port )) == NULL ) {
-	syslog( LOG_ALERT, "cannot conenct to host %s, port %d",
+	syslog( LOG_ALERT, "cannot connect to host %s, port %d",
 		ldap_host, ldap_port );
 	exit( 1 );
     }
@@ -161,10 +161,6 @@ main( int argc, char **argv)
 	rc = ldap_search_st( ld, searchbase, LDAP_SCOPE_SUBTREE,
 			     filter, attrs, 0, &timeout, &result );
 	if ( rc != LDAP_SUCCESS ) {
-#if 0
-	    syslog( LOG_ALERT, "error in ldap_search: %s",
-		    ldap_err2string( ld->ld_errno ));
-#endif
 	    ldap_get_option ( ld, LDAP_OPT_ERROR_STRING, &perr);
 	    syslog( LOG_ALERT, "error in ldap_search: %s",perr);
 	    free (perr);

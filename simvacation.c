@@ -205,10 +205,6 @@ main( argc, argv )
 
     if (( rc = ldap_simple_bind_s( ld, BIND_DN, BIND_METHOD ))
 		 != LDAP_SUCCESS ) {
-#if 0
-	syslog( LOG_ALERT, "ldap_simple_bind failed: %s",
-		ldap_err2string(ld->ld_errno ));
-#endif
 	ldap_get_option ( ld, LDAP_OPT_ERROR_STRING, &errmsgptr) ;
 	syslog( LOG_ALERT, "ldap_simple_bind failed: %s", errmsgptr);
 	free (errmsgptr);
@@ -490,9 +486,6 @@ junkmail()
 		"-request", 8,		"postmaster", 10,	"uucp", 4,
 		"mailer-daemon", 13,	"mailer", 6,		"-relay", 6,
 		"<>", 2,
-#if 0
-		NULL, NULL,
-#endif
 		NULL, 0,
     };
     register struct ignore *cur;
@@ -671,12 +664,6 @@ sendmessage( char *myname, char **vmsg)
     }
     for ( i = 0; vmsg[i] != NULL; i++ ) {
 	for ( p = vmsg[i]; *p; p++ ) {
-
-#if 0
-	    if ( *p == ' ' && *(p + 1) == '$' ) {
-		putchar( '\n' );
-		p++;
-#endif
 	    if ( *p == '$') {
 		putchar( '\n' );
 	    } else {
@@ -685,9 +672,6 @@ sendmessage( char *myname, char **vmsg)
 	}
 	putchar( '\n' );
     }
-#if 0
-    free (frombuf);
-#endif
 }
 
 usage( char * progname)
