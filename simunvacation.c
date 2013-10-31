@@ -18,12 +18,16 @@
  */
 
 #include <stdio.h>
+#include <ctype.h>
 #include <dirent.h>
+#include <stdlib.h>
 #include <sys/time.h>
 #include <sys/param.h>
 #include <syslog.h>
 #include <string.h>
 #include <unistd.h>
+
+#define LDAP_DEPRECATED         1
 
 #include <lber.h>
 #include <ldap.h>
@@ -35,7 +39,10 @@ typedef struct uniq_list {
     struct uniq_list *un_next;
 } uniq_list;
 
-main( int argc, char **argv)
+void usage();
+
+
+int main( int argc, char **argv)
 {
     extern int optind, opterr;
     extern char *optarg;
@@ -205,7 +212,7 @@ main( int argc, char **argv)
     }
 }
 
-usage()
+void usage()
 {
     fprintf( stderr, "usage: simunvacation [-v vbdir] [-s searchbase]\n" );
     fprintf( stderr, "                [-h ldap_host] [-p ldap_port]\n" );

@@ -19,7 +19,7 @@
  *
  */
 
-static char     *VIT = "__VACATION__INTERVAL__TIMER__";
+#define VIT     "__VACATION__INTERVAL__TIMER__"
 
 #ifndef VDBDIR
 #define VDBDIR  "/var/vacationdb"   /* dir for vacation databases */

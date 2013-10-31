@@ -70,10 +70,19 @@
  *	vacation" loops.
  */
 
-void bdb_err_log (const char *errpfx, char *msg);
-DB * initialize( char *f );
-int  setinterval( DB *dbp, time_t interval );
-char *makevdbpath();
+void    bdb_err_log( const DB_ENV *, const char *, const char * );
+DB      *initialize( char *f );
+int     junkmail();
+char    *makevdbpath();
+void    myexit( DB *, int );
+int     nsearch( char *, char * );
+int     pexecv( char *path, char ** );
+void    readheaders( DB * );
+int     recent( DB * );
+int     sendmessage( char *, char ** );
+int     setinterval( DB *, time_t );
+int     setreply( DB * );
+void    usage( char * );
 
 
 #define	MAXLINE	1024			/* max line from mail header */
@@ -97,7 +106,6 @@ ALIAS		*names;
 
 static char	from[MAXLINE];
 static char	subject[MAXLINE];
-static char	rdn[MAXLINE];
 static char	*dn;
 static char	**xdn;
 static char	*fallback_vmsg[] = {
@@ -109,11 +117,9 @@ extern int optind, opterr;
 extern char *optarg;
 
 
-main( argc, argv )
-    int argc;
-    char **argv;
+    int
+main( int argc, char **argv )
 {
-    struct passwd *pw;
     ALIAS *cur;
     time_t interval;
     int ch, rc, rval, i;
@@ -128,7 +134,7 @@ main( argc, argv )
     LDAPMessage *result, *e;
     char **vac, **vacmsgs, **cnames;
 
-    char *vdbpath, vdbdir[MAXPATHLEN], vdbpag[MAXPATHLEN];
+    char *vdbpath, vdbdir[MAXPATHLEN];
     char *vdbroot = VDBDIR;
     DB	 *dbp = NULL;    /* Berkeley DB instance */
 
@@ -341,18 +347,19 @@ main( argc, argv )
 		rcpt, from );
     }
     dbp->close(dbp, 0);	
-    myexit( NULL, 0 );
-    /* NOTREACHED */
+
+    return( 0 );
 }
 
 /*
  * readheaders --
  *	read mail headers
  */
+    void
 readheaders( DB * dbp )
 {
-    register ALIAS *cur;
-    register char *p;
+    ALIAS *cur;
+    char *p;
     int tome, cont;
     char buf[MAXLINE];
 
@@ -365,7 +372,7 @@ readheaders( DB * dbp )
 		for ( p = buf + 5; *p && *p != ' '; ++p );
 		*p = '\0';
 		(void) strcpy( from, buf + 5 );
-		if ( p = index( from, '\n' ))
+		if (( p = index( from, '\n' )))
 		    *p = '\0';
 		if ( junkmail()) {
 		    syslog( LOG_DEBUG, "ignoring junkmail from %s", from );
@@ -377,7 +384,7 @@ readheaders( DB * dbp )
 	case 'P':		/* "Precedence:" */
 	    cont = 0;
 	    if ( strncasecmp( buf, "Precedence", 10 ) ||
-			buf[10] != ':' && buf[10] != ' ' && buf[10] != '\t' ) {
+			( buf[10] != ':' && buf[10] != ' ' && buf[10] != '\t' )) {
 		break;
 	    }
 	    if ( !( p = index( buf, ':' ))) {
@@ -450,11 +457,11 @@ findme:	    for ( cur = names; !tome && cur; cur = cur->next ) {
  *	do a nice, slow, search of a string for a substring.
  *	(umich) - change any of {'.', '_'} to ' '.
  */
-nsearch( name, str )
-	register char *name, *str;
+    int
+nsearch( char *name, char *str )
 {
-    register int len;
-    register char *c;
+    int len;
+    char *c;
 
     /*
      * convert any periods or underscores to spaces
@@ -477,20 +484,25 @@ nsearch( name, str )
  * junkmail --
  *	read the header and return if automagic/junk/bulk mail
  */
+    int
 junkmail()
 {
     static struct ignore {
 		char	*name;
 		int	len;
     } ignore[] = {
-		"-request", 8,		"postmaster", 10,	"uucp", 4,
-		"mailer-daemon", 13,	"mailer", 6,		"-relay", 6,
-		"<>", 2,
-		NULL, 0,
+		{ "-request", 8 },
+                { "postmaster", 10 },
+                { "uucp", 4 },
+		{ "mailer-daemon", 13 },
+                { "mailer", 6 },
+                { "-relay", 6 },
+		{ "<>", 2 },
+		{ NULL, 0 },
     };
-    register struct ignore *cur;
-    register int len;
-    register char *p;
+    struct ignore *cur;
+    int len;
+    char *p;
 
     /*
      * This is mildly amusing, and I'm not positive it's right; trying
@@ -501,7 +513,7 @@ junkmail()
      */
     if ( !( p = index( from, '%' )))
 	if ( !( p = index( from, '@' ))) {
-	    if ( p = rindex( from, '!' ))
+	    if (( p = rindex( from, '!' )))
 		++p;
 	    else
 		p = from;
@@ -520,7 +532,8 @@ junkmail()
  * recent --
  *	find out if user has gotten a vacation message recently.
  */
-recent(DB * dbp)
+    int
+recent( DB *dbp )
 {
     DBT		key;
     DBT		data;
@@ -621,7 +634,8 @@ setreply(DB * dbp)
  * sendmessage --
  *	exec sendmail to send the vacation file to sender
  */
-sendmessage( char *myname, char **vmsg)
+    int
+sendmessage( char *myname, char **vmsg )
 {
     char	*nargv[5];
     int		i;
@@ -672,8 +686,11 @@ sendmessage( char *myname, char **vmsg)
 	}
 	putchar( '\n' );
     }
+
+    return( 0 );
 }
 
+    void
 usage( char * progname)
 {
     syslog(LOG_NOTICE, "uid %u: usage: %s login\n", getuid(), progname);
@@ -686,7 +703,7 @@ usage( char * progname)
  * of indirection, e.g. "bob" has vacation files in VDBDIR/b/bob.{dir,pag}
  * Returns path *up to* the file, but not the files themselves.
  */
-char *
+    char *
 makevdbpath( char *dir, char *user)
 {
     char	buf[MAXPATHLEN];
@@ -707,8 +724,8 @@ makevdbpath( char *dir, char *user)
  * bdb_err_log --
  *	Berkeley DB error log callback.
  */
-void 
-bdb_err_log ( const char *errpfx, char *msg)
+    void 
+bdb_err_log ( const DB_ENV * dbenv, const char *errpfx, const char *msg )
 {
     syslog( LOG_ALERT, "%s: %s", errpfx, msg);
     return;
@@ -718,6 +735,7 @@ bdb_err_log ( const char *errpfx, char *msg)
  * myexit --
  *	we're outta here...
  */
+    void
 myexit( DB * dbp, int eval )
 {
     if ( dbp )
@@ -733,8 +751,8 @@ myexit( DB * dbp, int eval )
  * Manipulates file descriptors 0, 1, and 2, such that the new child
  * is reading from the parent's output.
  */
-pexecv( path, argv )
-    char	*path, *argv[];
+    int
+pexecv( char *path, char **argv )
 {
     int		fd[ 2 ], c;
 

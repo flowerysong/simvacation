@@ -20,6 +20,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 
@@ -32,7 +33,14 @@
 
 #include "simvacation.h"
 
+    void
+usage( char *progname )
+{                         
+    fprintf( stderr, "usage: %s [-v vacdb]\n", progname);
+    exit( 1 );
+}
 
+    int
 main( int argc,  char **argv)
 {
 
@@ -158,11 +166,7 @@ main( int argc,  char **argv)
 	}
 	closedir(dirp);
     }
-}
 
-usage( char * progname )
-{
-    fprintf( stderr, "usage: %s [-v vacdb]\n", progname);
-    exit( 0 );
+    return( 0 );
 }
 
