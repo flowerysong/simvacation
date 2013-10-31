@@ -28,16 +28,7 @@
 #include <lber.h>
 #include <ldap.h>
 
-#ifndef VDBDIR
-#define VDBDIR		"/var/vacationdb" /* dir for vacation databases */
-#endif
-
-#define	LDAP_HOST	"ldap.itd.umich.edu"
-#define	BIND_DN		NULL
-#define BIND_METHOD	NULL
-#define SEARCHBASE	"ou=People,dc=umich,dc=edu"
-#define	ATTR_ONVAC	"onVacation"
-#define ATTRS		{ ATTR_ONVAC, NULL }
+#include "simvacation.h"
 
 typedef struct uniq_list {
     char *un_name;
@@ -59,8 +50,9 @@ main( int argc, char **argv)
     int rc;
     int err = 0;
     static struct timeval timeout;
-    static char *attrs[] = ATTRS;
-    char filter[64];LDAPMessage *result, *e;
+    static char *attrs[] = { ATTR_ONVAC, NULL };
+    char filter[64];
+    LDAPMessage *result, *e;
     char **vac;
 
     char *vdbpath = VDBDIR;

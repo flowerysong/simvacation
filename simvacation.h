@@ -25,4 +25,18 @@ static char     *VIT = "__VACATION__INTERVAL__TIMER__";
 #define VDBDIR  "/var/vacationdb"   /* dir for vacation databases */
 #endif
 
+#ifndef _PATH_SENDMAIL
+#define _PATH_SENDMAIL  "/usr/sbin/sendmail"
+#endif
+
+#define LDAP_HOST       "ldap.itd.umich.edu"
+#define BIND_DN         NULL
+#define BIND_METHOD     NULL
+#define SEARCHBASE      "ou=People,dc=umich,dc=edu"
+#define ATTR_ONVAC      "onVacation"
+#define ATTR_VACMSG     "vacationMessage"
+#define ATTR_CN         "cn"
+#define DOMAIN          "umich.edu"
+#define SUBJECTLINE     "Subject: Out of email contact"
+
 #endif

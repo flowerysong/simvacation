@@ -60,6 +60,7 @@
 #include <ldap.h>
 
 #include "simvacation.h"
+
 /*
  *  VACATION -- return a message to the sender when on vacation.
  *
@@ -77,10 +78,6 @@ char *makevdbpath();
 
 #define	MAXLINE	1024			/* max line from mail header */
 
-#ifndef _PATH_SENDMAIL
-#define _PATH_SENDMAIL	"/usr/sbin/sendmail"
-#endif
-
 /* From tzfile.h */
 #define SECSPERMIN      60
 #define MINSPERHOUR     60
@@ -92,25 +89,11 @@ char *makevdbpath();
 #define SECSPERDAY      ((time_t) SECSPERHOUR * HOURSPERDAY)
 #define MONSPERYEAR     12
 
-#define	LDAP_HOST	"ldap.itd.umich.edu"
-#define	BIND_DN		NULL
-#define BIND_METHOD	NULL
-#define SEARCHBASE	"ou=People,dc=umich,dc=edu"
-#define	ATTR_ONVAC	"onVacation"
-#define	ATTR_VACMSG	"vacationMessage"
-#define	ATTR_CN		"cn"
-#define ATTRS		{ ATTR_ONVAC, ATTR_VACMSG, ATTR_CN, NULL }
-#define	DOMAIN		"umich.edu"
-#define	SUBJECTLINE	"Subject: Out of email contact"
-
-
 typedef struct alias {
 	struct alias *next;
 	char *name;
 } ALIAS;
 ALIAS		*names;
-
-
 
 static char	from[MAXLINE];
 static char	subject[MAXLINE];
@@ -140,7 +123,7 @@ main( argc, argv )
     char *searchbase = SEARCHBASE;
     int ldap_port = LDAP_PORT;
     static struct timeval timeout;
-    static char *attrs[] = ATTRS;
+    static char *attrs[] = { ATTR_ONVAC, ATTR_VACMSG, ATTR_CN, NULL };
     char filter[64];
     LDAPMessage *result, *e;
     char **vac, **vacmsgs, **cnames;
