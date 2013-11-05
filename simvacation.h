@@ -43,6 +43,6 @@
 #define ATTR_CN         "cn"
 #define DOMAIN          "umich.edu"
 /* FIXME: Add Auto: to Subject? */
-#define SUBJECTLINE     "Subject: Out of email contact"
+#define SUBJECTPREFIX     "Out of email contact"
 
 #endif

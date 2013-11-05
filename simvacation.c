@@ -727,11 +727,34 @@ sendmessage( char *myname, char **vmsg )
      * Our stdout should now be hooked up to sendmail's stdin.
      * Generate headers and print the vacation message.
      */
-    /* FIXME: Add RFC 3834 "Auto-Submitted: auto-replied"
-     * In-Reply-To:, References: */
+
+    /* RFC 3834 3.1.1
+     *  For responses sent by Personal Responders, the From field SHOULD
+     *  contain the name of the recipient of the subject message (i.e.,
+     *  the user on whose behalf the response is being sent) and an
+     *  address chosen by the recipient of the subject message to be
+     *  recognizable to correspondents.  Often this will be the same
+     *  address that was used to send the subject message to that
+     *  recipient.
+     */
     printf( "From: %s <%s>\n", xdn[0], myname );
+
+    /* RFC 3834 3.1.3
+     *  The To header field SHOULD indicate the recipient of the response.
+     *  In general there SHOULD only be one recipient of any automatic
+     *  response.  This minimizes the potential for sorcerer's apprentice
+     *  mode and denial-of-service attacks.
+     */
     printf( "To: %s\n", from );
-    printf( SUBJECTLINE );
+
+    /* RFC 3834 3.1.5
+     *  The Subject field SHOULD contain a brief indication that the message
+     *  is an automatic response, followed by contents of the Subject field
+     *  (or a portion thereof) from the subject message.  The prefix "Auto:"
+     *  MAY be used as such an indication.  If used, this prefix SHOULD be
+     *  followed by an ASCII SPACE character (0x20).
+     */
+    printf( "Subject: %s", SUBJECTPREFIX );
     if ( subject[0] ) {
 	if ( strncasecmp( subject, "Re:", 3 )) {
 	    printf( " (Re: %s)", subject );
@@ -739,7 +762,25 @@ sendmessage( char *myname, char **vmsg )
 	    printf( " (%s)", subject );
 	}
     }
-    printf( "\n\n" );
+    printf( "\n" );
+
+    /* RFC 3834 3.1.6
+     *  The In-Reply-To and References fields SHOULD be provided in the
+     *  header of a response message if there was a Message-ID field in the
+     *  subject message, according to the rules in [RFC2822] section
+     *  3.6.4.
+     */
+    /* FIXME: add these headers */
+
+    /* RFC 3834 3.1.7
+     *  The Auto-Submitted field, with a value of "auto-replied", SHOULD be
+     *  included in the message header of any automatic response.
+     */
+    printf( "Auto-Submitted: auto-replied\n" );
+
+    /* End of headers */
+    printf( "\n" );
+
     if ( vmsg == NULL ) {
 	vmsg = fallback_vmsg;
     }
