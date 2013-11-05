@@ -380,39 +380,39 @@ readheaders( DB * dbp )
             }
         }
         /* RFC 3834 2
-         * Automatic responses SHOULD NOT be issued in response to any
-         * message which contains an Auto-Submitted header field (see below),
-         * where that field has any value other than "no"
+         *  Automatic responses SHOULD NOT be issued in response to any
+         *  message which contains an Auto-Submitted header field (see below),
+         *  where that field has any value other than "no"
          */
         else if ( strncasecmp( buf, "Auto-Submitted:", 15 ) == 0 ) {
             state = HEADER_NOREPLY;
             /* FIXME: implement, only send reply if value is no */
         }
         /* RFC 3834 2
-         * A responder MAY refuse to send a response to a subject message
-         * which contains any header or content which makes it appear to the
-         * responder that a response would not be appropriate.
+         *  A responder MAY refuse to send a response to a subject message
+         *  which contains any header or content which makes it appear to the
+         *  responder that a response would not be appropriate.
          */
         else if ( strncasecmp( buf, "List-", 5 ) == 0 ) {
             /* RFC 3834 2
-             * For similar reasons, a responder MAY ignore any subject message
-             * with a List-* field [RFC2369].
+             *  For similar reasons, a responder MAY ignore any subject message
+             *  with a List-* field [RFC2369].
              */
             state = HEADER_NOREPLY;
             /* FIXME: implement */
         }
         else if ( strncasecmp( buf, "Precedence", 10 ) == 0 ) {
             /* RFC 3834 2 
-             * For instance, if the subject message contained a
-             * Precedence header field [RFC2076] with a value of
-             * "list" the responder might guess that the traffic had
-             * arrived from a mailing list, and would not respond if
-             * the response were only intended for personal messages.
-             * [...]
-             * (Because Precedence is not a standard header field, and
-             * its use and interpretation vary widely in the wild,
-             * no particular responder behavior in the presence of
-             * Precedence is recommended by this specification.
+             *  For instance, if the subject message contained a
+             *  Precedence header field [RFC2076] with a value of
+             *  "list" the responder might guess that the traffic had
+             *  arrived from a mailing list, and would not respond if
+             *  the response were only intended for personal messages.
+             *  [...]
+             *  (Because Precedence is not a standard header field, and
+             *  its use and interpretation vary widely in the wild,
+             *  no particular responder behavior in the presence of
+             *  Precedence is recommended by this specification.
              */
             state = HEADER_NOREPLY;
 	    if (( buf[10] = ':' || buf[10] == ' ' || buf[10] == '\t') &&
@@ -435,12 +435,12 @@ readheaders( DB * dbp )
             state = HEADER_NOREPLY;
         }
         /* RFC 3834 2 
-         * Personal and Group responses whose purpose is to notify the sender
-         * of a message of a temporary absence of the recipient (e.g.,
-         * "vacation" and "out of the office" notices) SHOULD NOT be issued
-         * unless a valid address for the recipient is explicitly included in
-         * a recipient (e.g., To, Cc, Bcc, Resent-To, Resent-Cc, or Resent-
-         * Bcc) field of the subject message.
+         *  Personal and Group responses whose purpose is to notify the sender
+         *  of a message of a temporary absence of the recipient (e.g.,
+         *  "vacation" and "out of the office" notices) SHOULD NOT be issued
+         *  unless a valid address for the recipient is explicitly included in
+         *  a recipient (e.g., To, Cc, Bcc, Resent-To, Resent-Cc, or Resent-
+         *  Bcc) field of the subject message.
          */
         else if ( strncasecmp( buf, "Cc:", 3 ) == 0 ) {
             state = HEADER_RECIPIENT;
@@ -455,8 +455,8 @@ readheaders( DB * dbp )
             /* Not a continuation of the previous header line, reset flag
              *
              * RFC 2822 2.2.3
-             * Unfolding is accomplished by simply removing any CRLF
-             * that is immediately followed by WSP.
+             *  Unfolding is accomplished by simply removing any CRLF
+             *  that is immediately followed by WSP.
              */
             state = HEADER_UNKNOWN;
         }
@@ -536,13 +536,13 @@ nsearch( char *name, char *str )
 /* check_destination
  *
  * RFC 3834 2
- * Responders MUST NOT generate any response for which the
- * destination of that response would be a null address (e.g., an
- * address for which SMTP MAIL FROM or Return-Path is <>), since the
- * response would not be delivered to a useful destination.
- * Responders MAY refuse to generate responses for addresses commonly
- * used as return addresses by responders - e.g., those with local-
- * parts matching "owner-*", "*-request", "MAILER-DAEMON", etc.
+ *  Responders MUST NOT generate any response for which the
+ *  destination of that response would be a null address (e.g., an
+ *  address for which SMTP MAIL FROM or Return-Path is <>), since the
+ *  response would not be delivered to a useful destination.
+ *  Responders MAY refuse to generate responses for addresses commonly
+ *  used as return addresses by responders - e.g., those with local-
+ *  parts matching "owner-*", "*-request", "MAILER-DAEMON", etc.
  */
     int
 check_destination()
