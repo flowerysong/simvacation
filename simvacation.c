@@ -71,8 +71,8 @@
  */
 
 void    bdb_err_log( const DB_ENV *, const char *, const char * );
+int     check_destination();
 DB      *initialize( char *f );
-int     junkmail();
 char    *makevdbpath();
 void    myexit( DB *, int );
 int     nsearch( char *, char * );
@@ -374,9 +374,8 @@ readheaders( DB * dbp )
             (void) strcpy( from, buf + 5 );
             if (( p = index( from, '\n' )))
                 *p = '\0';
-            /* FIXME: junkmail? */
-            if ( junkmail()) {
-                syslog( LOG_DEBUG, "ignoring junkmail from %s", from );
+            if ( check_destination()) {
+                syslog( LOG_DEBUG, "Ignoring bad destination %s", from );
                 myexit( dbp, 0 );
             }
         }
@@ -526,12 +525,19 @@ nsearch( char *name, char *str )
     return( 0 );
 }
 
-/*
- * junkmail --
- *	read the header and return if automagic/junk/bulk mail
+/* check_destination
+ *
+ * RFC 3834 2
+ * Responders MUST NOT generate any response for which the
+ * destination of that response would be a null address (e.g., an
+ * address for which SMTP MAIL FROM or Return-Path is <>), since the
+ * response would not be delivered to a useful destination.
+ * Responders MAY refuse to generate responses for addresses commonly
+ * used as return addresses by responders - e.g., those with local-
+ * parts matching "owner-*", "*-request", "MAILER-DAEMON", etc.
  */
     int
-junkmail()
+check_destination()
 {
     static struct ignore {
 		char	*name;
@@ -557,7 +563,7 @@ junkmail()
      *
      * From site!site!SENDER%site.domain%site.domain@site.domain
      */
-    if ( !( p = index( from, '%' )))
+    if ( !( p = index( from, '%' ))) {
 	if ( !( p = index( from, '@' ))) {
 	    if (( p = rindex( from, '!' )))
 		++p;
@@ -565,11 +571,16 @@ junkmail()
 		p = from;
 	    for ( ; *p; ++p );
 	}
+    }
+
     len = p - from;
-    for ( cur = ignore; cur->name; ++cur )
+    for ( cur = ignore; cur->name; ++cur ) {
 	if ( len >= cur->len && 
-		!strncasecmp( cur->name, p - cur->len, cur->len ))
+		strncasecmp( cur->name, p - cur->len, cur->len == 0 )) {
 	    return( 1 );
+        }
+    }
+
     return( 0 );
 }
 
