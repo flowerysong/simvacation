@@ -434,6 +434,14 @@ readheaders( DB * dbp )
             /* FIXME: implement, find out what valid values are */
             state = HEADER_NOREPLY;
         }
+        /* RFC 3834 2 
+         * Personal and Group responses whose purpose is to notify the sender
+         * of a message of a temporary absence of the recipient (e.g.,
+         * "vacation" and "out of the office" notices) SHOULD NOT be issued
+         * unless a valid address for the recipient is explicitly included in
+         * a recipient (e.g., To, Cc, Bcc, Resent-To, Resent-Cc, or Resent-
+         * Bcc) field of the subject message.
+         */
         else if ( strncasecmp( buf, "Cc:", 3 ) == 0 ) {
             state = HEADER_RECIPIENT;
         }
