@@ -71,7 +71,7 @@
  */
 
 void    bdb_err_log( const DB_ENV *, const char *, const char * );
-int     check_destination();
+int     check_from();
 DB      *initialize( char *f );
 char    *makevdbpath();
 void    myexit( DB *, int );
@@ -374,10 +374,6 @@ readheaders( DB * dbp )
             (void) strcpy( from, buf + 5 );
             if (( p = index( from, '\n' )))
                 *p = '\0';
-            if ( check_destination()) {
-                syslog( LOG_DEBUG, "Ignoring bad destination %s", from );
-                myexit( dbp, 0 );
-            }
         }
         /* RFC 3834 2
          *  Automatic responses SHOULD NOT be issued in response to any
@@ -495,14 +491,21 @@ readheaders( DB * dbp )
     }
 
     if ( !tome ) {
-	syslog( LOG_DEBUG, "mail from \"%s\" not to user \"%s\"\n",
+	syslog( LOG_DEBUG, "Mail from \"%s\" not to user \"%s\"",
 			*from ? from : "(unknown)", dn );
 	myexit( dbp, 0 );
     }
+
     if ( !*from ) {
-	syslog( LOG_NOTICE, "no initial \"From\" line.\n" );
+	syslog( LOG_NOTICE, "Unknown sender. No -f or \"From\" line" );
 	myexit( dbp, 0 );
     }
+
+    if ( check_from()) {
+        syslog( LOG_NOTICE, "Not replying to sender \"%s\"", from );
+        myexit( dbp, 0 );
+    }
+
 }
 
 /*
@@ -533,7 +536,7 @@ nsearch( char *name, char *str )
     return( 0 );
 }
 
-/* check_destination
+/* check_from
  *
  * RFC 3834 2
  *  Responders MUST NOT generate any response for which the
@@ -545,7 +548,7 @@ nsearch( char *name, char *str )
  *  parts matching "owner-*", "*-request", "MAILER-DAEMON", etc.
  */
     int
-check_destination()
+check_from()
 {
     static struct ignore {
 		char	*name;
