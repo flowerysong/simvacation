@@ -382,7 +382,15 @@ readheaders( DB * dbp )
          */
         else if ( strncasecmp( buf, "Auto-Submitted:", 15 ) == 0 ) {
             state = HEADER_NOREPLY;
-            /* FIXME: implement, only send reply if value is no */
+            p = buf + 15;
+            while ( *++p && isspace( *p ));
+            if (!*p) {
+                break;
+            }
+            if ( strncasecmp( p, "no", 2 ) != 0 ) {
+                syslog( LOG_DEBUG, "Ignoring message due to header %s", buf );
+                myexit( dbp, 0 );
+            }
         }
         /* RFC 3834 2
          *  A responder MAY refuse to send a response to a subject message
