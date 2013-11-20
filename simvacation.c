@@ -395,7 +395,8 @@ readheaders( DB * dbp )
              *  with a List-* field [RFC2369].
              */
             state = HEADER_NOREPLY;
-            /* FIXME: implement */
+            syslog( LOG_DEBUG, "Ignoring message due to header %s", buf );
+            myexit( dbp, 0 );
         }
         else if ( strncasecmp( buf, "Precedence", 10 ) == 0 ) {
             /* RFC 3834 2 
