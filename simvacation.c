@@ -436,8 +436,38 @@ readheaders( DB * dbp )
             }
         }
         else if ( strncasecmp( buf, "X-Auto-Response-Suppress:", 25 ) == 0 ) {
-            /* FIXME: implement, find out what valid values are */
+            /* MS-OXCMAIL 2.1.3.2.20
+             *
+             * X-Auto-Response-Suppress value   | Meaning
+             * ----------------------------------------------------------------
+             * None                             |
+             * ----------------------------------------------------------------
+             * All                              |
+             * ----------------------------------------------------------------
+             * DR                               | Suppress delivery reports
+             *                                  | from transport.
+             * ----------------------------------------------------------------
+             * NDR                              | Suppress non-delivery reports
+             *                                  | from transport.
+             * ----------------------------------------------------------------
+             * RN                               | Suppress read notifications
+             *                                  | from receiving client.
+             * ----------------------------------------------------------------
+             * NRN                              | Suppress non-read
+             *                                  | notifications from receiving
+             *                                  | client.
+             * ----------------------------------------------------------------
+             * OOF                              | Suppress Out of Office (OOF)
+             *                                  | notifications.
+             * ----------------------------------------------------------------
+             * AutoReply                        | Suppress auto-reply messages
+             *                                  | other than OOF notifications.
+             * ----------------------------------------------------------------
+             *
+             * The order of these values in the header is not important.
+             */
             state = HEADER_NOREPLY;
+            /* FIXME: Implement, look for OOF and All tokens */
         }
         /* RFC 3834 2 
          *  Personal and Group responses whose purpose is to notify the sender
