@@ -106,6 +106,7 @@ ALIAS		*names;
 
 static char	from[MAXLINE];
 static char	subject[MAXLINE];
+static char     messageid[MAXLINE];
 static char	*dn;
 static char	**xdn;
 static char	*fallback_vmsg[] = {
@@ -151,7 +152,10 @@ main( int argc, char **argv )
     openlog( progname, LOG_PID, LOG_VACATION );
     opterr = 0;
     interval = -1;
-    subject[0] = '\0';
+
+    from[0]      = '\0';
+    subject[0]   = '\0';
+    messageid[0] = '\0';
 
     while (( ch = getopt( argc, argv, "f:r:s:h:p:v:" )) != EOF ) {
 	switch( (char) ch ) {
@@ -371,9 +375,15 @@ readheaders( DB * dbp )
             /* FIXME: What is this looking at? */
 	    for ( p = buf + 5; *p && *p != ' '; ++p );
             *p = '\0';
-            (void) strcpy( from, buf + 5 );
+            strncpy( from, buf + 5, MAXLINE - 1 );
+            from[MAXLINE] = '\0';
             if (( p = index( from, '\n' )))
                 *p = '\0';
+        }
+        if ( strncasecmp( buf, "Message-ID:", 11 ) == 0 ) {
+            state = HEADER_UNKNOWN; /* FIXME */
+            strncpy( messageid, buf, MAXLINE - 1);
+            messageid[MAXLINE] = '\0';
         }
         /* RFC 3834 2
          *  Automatic responses SHOULD NOT be issued in response to any
@@ -812,8 +822,30 @@ sendmessage( char *myname, char **vmsg )
      *  subject message, according to the rules in [RFC2822] section
      *  3.6.4.
      */
-    /* FIXME: add these headers */
-
+    if ( messageid[0] ) {
+        /* RFC 2822 3.6.4
+         *  The "In-Reply-To:" field will contain the contents of the
+         *  "Message-ID:" field of the message to which this one is a reply
+         *  (the "parent message"). [...] If there is no "Message-ID:" field
+         *  in any of the parent messages, then the new message will have no
+         *  "In-Reply-To:" field.
+         */
+        printf( "In-Reply-To: %s\n", messageid );
+    }
+    if ( messageid[0] ) {
+        /* FIXME: RFC compliance */
+        /* RFC 2822 3.6.4
+         *  The "References:" field will contain the contents of the 
+         *  parent's "References:" field (if any) followed by the contents
+         *  of the parent's "Message-ID:" field (if any). If the parent
+         *  message does not contain a "References:" field but does have an
+         *  "In-Reply-To:" field containing a single message identifier, then
+         *  the "References:" field will contain the contents of the parent's
+         *  "In-Reply-To:" field followed by the contents of the parent's
+         *  "Message-ID:" field (if any).
+         */
+        printf( "References: %s\n", messageid );
+    }
     /* RFC 3834 3.1.7
      *  The Auto-Submitted field, with a value of "auto-replied", SHOULD be
      *  included in the message header of any automatic response.
