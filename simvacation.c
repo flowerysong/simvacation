@@ -477,7 +477,10 @@ readheaders( DB * dbp )
              * The order of these values in the header is not important.
              */
             state = HEADER_NOREPLY;
-            /* FIXME: Implement, look for OOF and All tokens */
+            if ( nsearch( "OOF", buf ) || nsearch( "All", buf )) {
+                syslog( LOG_DEBUG, "Ignoring message due to header %s", buf );
+                myexit( dbp, 0 );
+            }
         }
         /* RFC 3834 2 
          *  Personal and Group responses whose purpose is to notify the sender
