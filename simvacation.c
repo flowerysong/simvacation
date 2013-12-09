@@ -382,7 +382,7 @@ readheaders( DB * dbp )
         }
         if ( strncasecmp( buf, "Message-ID:", 11 ) == 0 ) {
             state = HEADER_UNKNOWN; /* FIXME */
-            strncpy( messageid, buf, MAXLINE - 1);
+            strncpy( messageid, buf + 11, MAXLINE - 1);
             messageid[MAXLINE] = '\0';
             if (( p = index( messageid, '\n' ))) {
                 *p = '\0';
