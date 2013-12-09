@@ -433,7 +433,7 @@ readheaders( DB * dbp )
              *  Precedence is recommended by this specification.
              */
             state = HEADER_NOREPLY;
-	    if (( buf[10] = ':' || buf[10] == ' ' || buf[10] == '\t') &&
+	    if (( buf[10] == ':' || buf[10] == ' ' || buf[10] == '\t') &&
                     ( p = index( buf, ':' ))) {
                 while ( *++p && isspace( *p ));
                 if ( !*p ) {
