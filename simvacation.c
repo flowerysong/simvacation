@@ -384,6 +384,9 @@ readheaders( DB * dbp )
             state = HEADER_UNKNOWN; /* FIXME */
             strncpy( messageid, buf, MAXLINE - 1);
             messageid[MAXLINE] = '\0';
+            if (( p = index( messageid, '\n' ))) {
+                *p = '\0';
+            }
         }
         /* RFC 3834 2
          *  Automatic responses SHOULD NOT be issued in response to any
