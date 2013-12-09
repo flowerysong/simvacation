@@ -161,7 +161,7 @@ main( int argc, char **argv )
 	switch( (char) ch ) {
 	case 'f':
 	    strncpy(from, optarg, MAXLINE - 1);
-	    from[MAXLINE] = '\0';
+	    from[MAXLINE - 1] = '\0';
 	    break;
 	case 'r':
 	    if ( isdigit( *optarg )) {
@@ -376,14 +376,14 @@ readheaders( DB * dbp )
 	    for ( p = buf + 5; *p && *p != ' '; ++p );
             *p = '\0';
             strncpy( from, buf + 5, MAXLINE - 1 );
-            from[MAXLINE] = '\0';
+            from[MAXLINE - 1] = '\0';
             if (( p = index( from, '\n' )))
                 *p = '\0';
         }
         if ( strncasecmp( buf, "Message-ID:", 11 ) == 0 ) {
             state = HEADER_UNKNOWN; /* FIXME */
             strncpy( messageid, buf + 11, MAXLINE - 1);
-            messageid[MAXLINE] = '\0';
+            messageid[MAXLINE - 1] = '\0';
             if (( p = index( messageid, '\n' ))) {
                 *p = '\0';
             }
