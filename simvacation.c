@@ -209,14 +209,14 @@ main( int argc, char **argv )
      * Open ldap connection and bind
      */
     if (( ld = ldap_open( ldap_host, ldap_port )) == NULL ) {
-	syslog( LOG_INFO, "ldap_open failed" );
+	syslog( LOG_INFO, "ldap: ldap_open failed" );
 	myexit( NULL, EX_TEMPFAIL ); /* Try again later */
     }
 
     if (( rc = ldap_simple_bind_s( ld, BIND_DN, BIND_METHOD ))
 		 != LDAP_SUCCESS ) {
 	ldap_get_option ( ld, LDAP_OPT_ERROR_STRING, &errmsgptr) ;
-	syslog( LOG_ALERT, "ldap_simple_bind failed: %s", errmsgptr);
+	syslog( LOG_ALERT, "ldap: ldap_simple_bind failed: %s", errmsgptr);
 	free (errmsgptr);
 	myexit( NULL, EX_TEMPFAIL ); /* Try again later */
     }
@@ -244,16 +244,16 @@ main( int argc, char **argv )
 	rval = 0;	/* permanent errors */
     }
     if ( rc != LDAP_SUCCESS ) {
-	syslog( LOG_ALERT, "error in ldap_search: %s", ldap_err2string( rc ));
+	syslog( LOG_ALERT, "ldap: ldap_search failed: %s", ldap_err2string( rc ));
 	myexit( NULL, rval );
     }		
 
     matches = ldap_count_entries( ld, result );
     if ( matches > 1 ) {
-	syslog( LOG_ALERT, "ambiguous: %s", rcpt );
+	syslog( LOG_ALERT, "ldap: multiple matches for %s", rcpt );
 	myexit( NULL, 0 );
     } else if ( matches == 0 ) {
-	syslog( LOG_ALERT, "no match for %s", rcpt );
+	syslog( LOG_ALERT, "ldap: no match for %s", rcpt );
 	myexit( NULL, 0 );
     } else {
 	e = ldap_first_entry( ld, result );
@@ -268,7 +268,7 @@ main( int argc, char **argv )
 	     * XXX why were we invoked if user is not
 	     * on vacation??? syslog it
 	     */
-	    syslog( LOG_ALERT, "user %s not on vacation", rcpt );
+	    syslog( LOG_ALERT, "ldap: user %s is not on vacation", rcpt );
 	    myexit(NULL, 0);
 	}
     }
@@ -283,7 +283,7 @@ main( int argc, char **argv )
     ** Create the database handle and Open the db
     */
     if ((rc = db_create( &dbp, NULL, 0)) != 0) {
-        syslog( LOG_ALERT,  "db_create: %s\n", db_strerror(rc));
+        syslog( LOG_ALERT,  "bdb: db_create: %s", db_strerror(rc));
 	myexit( NULL, 0);
     }   
       
@@ -308,7 +308,7 @@ main( int argc, char **argv )
 			DB_CREATE,      /* Create db if it doesn't exist */
 			0664)) != 0) {
 	dbp->err(dbp, rc, "%s: open", vdbpath);
-	syslog( LOG_ALERT, "%s: %s\n", vdbpath, strerror( errno ));
+	syslog( LOG_ALERT, "bdb: %s: %s\n", vdbpath, strerror( errno ));
 	myexit( dbp, 0 );
     }
     dbp->set_errpfx( dbp, "");
@@ -344,10 +344,10 @@ main( int argc, char **argv )
 	setreply( dbp );
 	sprintf(rcptstr, "%s@%s", rcpt, DOMAIN);
 	sendmessage( rcptstr, vacmsgs );
-	syslog( LOG_DEBUG, "sent message for %s to %s from %s",
+	syslog( LOG_DEBUG, "mail: sent message for %s to %s from %s",
 			rcpt, from, rcptstr );
     } else {
-	syslog( LOG_DEBUG, "suppressed message for %s to %s",
+	syslog( LOG_DEBUG, "mail: suppressed message for %s to %s",
 		rcpt, from );
     }
     dbp->close(dbp, 0);	
@@ -401,7 +401,7 @@ readheaders( DB * dbp )
                 break;
             }
             if ( strncasecmp( p, "no", 2 ) != 0 ) {
-                syslog( LOG_DEBUG, "Ignoring message due to header %s", buf );
+                syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
                 myexit( dbp, 0 );
             }
         }
@@ -416,7 +416,7 @@ readheaders( DB * dbp )
              *  with a List-* field [RFC2369].
              */
             state = HEADER_NOREPLY;
-            syslog( LOG_DEBUG, "Ignoring message due to header %s", buf );
+            syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
             myexit( dbp, 0 );
         }
         else if ( strncasecmp( buf, "Precedence", 10 ) == 0 ) {
@@ -442,8 +442,7 @@ readheaders( DB * dbp )
                 if ( strncasecmp( p, "junk", 4 ) == 0 ||
                      strncasecmp( p, "bulk", 4 ) == 0 ||
                      strncasecmp( p, "list", 4 ) == 0 ) {
-                    syslog( LOG_DEBUG, "Ignoring Precedence %s from %s",
-                            p, from );
+                    syslog( LOG_DEBUG, "readheaders: suppressing message: precedence %s", p );
                     myexit( dbp, 0 );
                 }
             }
@@ -481,7 +480,7 @@ readheaders( DB * dbp )
              */
             state = HEADER_NOREPLY;
             if ( nsearch( "OOF", buf ) || nsearch( "All", buf )) {
-                syslog( LOG_DEBUG, "Ignoring message due to header %s", buf );
+                syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
                 myexit( dbp, 0 );
             }
         }
@@ -545,19 +544,20 @@ readheaders( DB * dbp )
 	}
     }
 
-    if ( !tome ) {
-	syslog( LOG_DEBUG, "Mail from \"%s\" not to user \"%s\"",
-			*from ? from : "(unknown)", dn );
-	myexit( dbp, 0 );
+    if ( !*from ) {
+        syslog( LOG_NOTICE, "readheaders: skipping message: unknown sender" );
+        myexit( dbp, 0 );
     }
 
-    if ( !*from ) {
-	syslog( LOG_NOTICE, "Unknown sender. No -f or \"From\" line" );
+    syslog( LOG_DEBUG, "readheaders: mail from %s", from );
+
+    if ( !tome ) {
+	syslog( LOG_NOTICE, "readheaders: suppressing message: mail does not appear to be to user %s", dn );
 	myexit( dbp, 0 );
     }
 
     if ( check_from()) {
-        syslog( LOG_NOTICE, "Not replying to sender \"%s\"", from );
+        syslog( LOG_NOTICE, "readheaders: suppressing message: bad sender %s", from );
         myexit( dbp, 0 );
     }
 
@@ -718,7 +718,7 @@ setinterval( DB *dbp, time_t interval )
     data.size = sizeof( interval );
     rc = dbp->put(dbp, NULL, &key, &data, (u_int32_t) 0); /* allow overwrites */
     if (rc != 0) {
-	syslog( LOG_ALERT, "DB Error while putting interval: %d, %s", 
+	syslog( LOG_ALERT, "bdb: error while putting interval: %d, %s", 
 		rc, db_strerror(rc) );
     }
     return (rc);
@@ -746,7 +746,7 @@ setreply(DB * dbp)
     data.size = sizeof( now );
     rc = dbp->put(dbp, NULL, &key, &data, 0);  /* allow overwrites */
     if (rc != 0) {
-	syslog( LOG_ALERT, "DB Error while putting reply time: %d, %s", 
+	syslog( LOG_ALERT, "bdb: error while putting reply time: %d, %s", 
 		rc, db_strerror(rc) );
     }
 
@@ -778,7 +778,7 @@ sendmessage( char *myname, char **vmsg )
 #endif    
 
     if (( pexecv( _PATH_SENDMAIL, nargv )) == -1 ) {
-	syslog( LOG_ERR, "pexecv of %s failed", _PATH_SENDMAIL );
+	syslog( LOG_ERR, "mail: pexecv of %s failed", _PATH_SENDMAIL );
 	return( EX_TEMPFAIL );
     }
     /*
@@ -881,6 +881,7 @@ sendmessage( char *myname, char **vmsg )
     void
 usage( char * progname)
 {
+    /* FIXME: wth? */
     syslog(LOG_NOTICE, "uid %u: usage: %s login\n", getuid(), progname);
     myexit( NULL, 0 );
 }
@@ -915,7 +916,7 @@ makevdbpath( char *dir, char *user)
     void 
 bdb_err_log ( const DB_ENV * dbenv, const char *errpfx, const char *msg )
 {
-    syslog( LOG_ALERT, "%s: %s", errpfx, msg);
+    syslog( LOG_ALERT, "bdb: %s: %s", errpfx, msg);
     return;
 }
 
