@@ -197,7 +197,7 @@ main( int argc, char **argv )
 
     if ( !*argv ) {
 	usage( progname );
-	myexit( NULL, 1 );
+	myexit( NULL, EX_USAGE );
     }
     /*
      * Timeout values for LDAP searches
@@ -241,7 +241,7 @@ main( int argc, char **argv )
 	rval = EX_TEMPFAIL;	/* temporary errors */
 	break;
     default:
-	rval = 0;	/* permanent errors */
+	rval = EX_OK;	/* permanent errors */
     }
     if ( rc != LDAP_SUCCESS ) {
 	syslog( LOG_ALERT, "ldap: ldap_search failed: %s", ldap_err2string( rc ));
@@ -251,10 +251,10 @@ main( int argc, char **argv )
     matches = ldap_count_entries( ld, result );
     if ( matches > 1 ) {
 	syslog( LOG_ALERT, "ldap: multiple matches for %s", rcpt );
-	myexit( NULL, 0 );
+	myexit( NULL, EX_OK );
     } else if ( matches == 0 ) {
 	syslog( LOG_ALERT, "ldap: no match for %s", rcpt );
-	myexit( NULL, 0 );
+	myexit( NULL, EX_OK );
     } else {
 	e = ldap_first_entry( ld, result );
 	dn = ldap_get_dn( ld, e );
@@ -269,7 +269,7 @@ main( int argc, char **argv )
 	     * on vacation??? syslog it
 	     */
 	    syslog( LOG_ALERT, "ldap: user %s is not on vacation", rcpt );
-	    myexit(NULL, 0);
+	    myexit( NULL, EX_OK );
 	}
     }
 
@@ -284,7 +284,7 @@ main( int argc, char **argv )
     */
     if ((rc = db_create( &dbp, NULL, 0)) != 0) {
         syslog( LOG_ALERT,  "bdb: db_create: %s", db_strerror(rc));
-	myexit( NULL, 0);
+	myexit( NULL, EX_OK );
     }   
       
     dbp->set_errpfx( dbp, "DB creation");
@@ -292,12 +292,12 @@ main( int argc, char **argv )
     if ((rc = dbp->set_pagesize( dbp, 1024)) != 0) {
 	dbp->err(dbp, rc, "set_pagesize");
 	(void)dbp->close( dbp, 0);
-	myexit( NULL, 0);
+	myexit( NULL, EX_OK );
     } 
     if ((rc = dbp->set_cachesize( dbp, 0, 32 * 1024, 0)) != 0) {
 	dbp->err( dbp, rc, "set_cachesize");
 	(void)dbp->close( dbp, 0);
-	myexit( NULL, 0);
+	myexit( NULL, EX_OK );
     }
 	
     if ((rc = dbp->open(dbp,            /* DB handle */
@@ -309,7 +309,7 @@ main( int argc, char **argv )
 			0664)) != 0) {
 	dbp->err(dbp, rc, "%s: open", vdbpath);
 	syslog( LOG_ALERT, "bdb: %s: %s\n", vdbpath, strerror( errno ));
-	myexit( dbp, 0 );
+	myexit( dbp, EX_OK );
     }
     dbp->set_errpfx( dbp, "");
 
@@ -322,7 +322,7 @@ main( int argc, char **argv )
      */
     if ( !( cur = (ALIAS *) malloc( sizeof( ALIAS )))) {
 	syslog( LOG_ALERT, "malloc for alias failed");
-	myexit( dbp, 0 );
+	myexit( dbp, EX_TEMPFAIL );
     }
     cur->name = rcpt;
     cur->next = NULL;
@@ -330,7 +330,7 @@ main( int argc, char **argv )
     for ( i = 0; cnames && cnames[i] != NULL; i++ ) {
 	if ( !( cur->next = (ALIAS *) malloc( sizeof( ALIAS )))) {
 	    syslog( LOG_ALERT, "malloc for alias failed");
-	    myexit( dbp, 0 );
+	    myexit( dbp, EX_TEMPFAIL );
 	}
 	cur = cur->next;
 	cur->name = cnames[i];
@@ -402,7 +402,7 @@ readheaders( DB * dbp )
             }
             if ( strncasecmp( p, "no", 2 ) != 0 ) {
                 syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
-                myexit( dbp, 0 );
+                myexit( dbp, EX_OK );
             }
         }
         /* RFC 3834 2
@@ -417,7 +417,7 @@ readheaders( DB * dbp )
              */
             state = HEADER_NOREPLY;
             syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
-            myexit( dbp, 0 );
+            myexit( dbp, EX_OK );
         }
         else if ( strncasecmp( buf, "Precedence", 10 ) == 0 ) {
             /* RFC 3834 2 
@@ -443,7 +443,7 @@ readheaders( DB * dbp )
                      strncasecmp( p, "bulk", 4 ) == 0 ||
                      strncasecmp( p, "list", 4 ) == 0 ) {
                     syslog( LOG_DEBUG, "readheaders: suppressing message: precedence %s", p );
-                    myexit( dbp, 0 );
+                    myexit( dbp, EX_OK );
                 }
             }
         }
@@ -481,7 +481,7 @@ readheaders( DB * dbp )
             state = HEADER_NOREPLY;
             if ( nsearch( "OOF", buf ) || nsearch( "All", buf )) {
                 syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
-                myexit( dbp, 0 );
+                myexit( dbp, EX_OK );
             }
         }
         /* RFC 3834 2 
@@ -546,19 +546,19 @@ readheaders( DB * dbp )
 
     if ( !*from ) {
         syslog( LOG_NOTICE, "readheaders: skipping message: unknown sender" );
-        myexit( dbp, 0 );
+        myexit( dbp, EX_OK );
     }
 
     syslog( LOG_DEBUG, "readheaders: mail from %s", from );
 
     if ( !tome ) {
 	syslog( LOG_NOTICE, "readheaders: suppressing message: mail does not appear to be to user %s", dn );
-	myexit( dbp, 0 );
+	myexit( dbp, EX_OK );
     }
 
     if ( check_from()) {
         syslog( LOG_NOTICE, "readheaders: suppressing message: bad sender %s", from );
-        myexit( dbp, 0 );
+        myexit( dbp, EX_OK );
     }
 
 }
