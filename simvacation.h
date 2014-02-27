@@ -19,6 +19,8 @@
  *
  */
 
+#include <config.h>
+
 #define HEADER_UNKNOWN      0
 #define HEADER_RECIPIENT    1
 #define HEADER_SUBJECT      2

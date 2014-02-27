@@ -1,24 +1,31 @@
-#                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.57)
-AC_INIT(FULL-PACKAGE-NAME, VERSION, BUG-REPORT-ADDRESS)
+AC_PREREQ(2.63)
+AC_INIT(simvacation, m4_esyscmd([bash version.sh]), simta@umich.edu)
+AM_INIT_AUTOMAKE([foreign])
 AC_CONFIG_SRCDIR([simunvacation.c])
-## AC_CONFIG_HEADER([config.h])
+AC_CONFIG_HEADER([config.h])
+AC_CONFIG_MACRO_DIR([m4])
 
 # Set up variables
-AC_ARG_WITH(vacationdb, AC_HELP_STRING([--with-vacationdb=vacationdb], [default: /var/vacationdb]), vacationdb="$withval", vacationdb="/var/vacationdb")
-AC_SUBST(vacationdb)
+AC_ARG_WITH(vacationdb, AC_HELP_STRING([--with-vacationdb=DB], [default: /var/vacationdb]), [], with_vacationdb="/var/vacationdb")
+AC_DEFINE_UNQUOTED(VDBDIR, ["$with_vacationdb"], [vacation db location])
 
-AC_ARG_WITH(syslog, AC_HELP_STRING([--with-syslog=LOG_MAIL], [default syslog facility: LOG_MAIL]), vacsyslog="$withval", vacsyslog="LOG_MAIL")
-AC_SUBST(vacsyslog)
+AC_ARG_WITH(syslog, AC_HELP_STRING([--with-syslog=FACILITY], [default: LOG_MAIL]), [], with_syslog="LOG_MAIL")
+AC_DEFINE_UNQUOTED(LOG_VACATION, [$with_syslog], [syslog facility])
 
 # Checks for programs.
 AC_PROG_CC
 
 # Checks for libraries.
-CHECK_LDAP
-CHECK_DB
+AX_PATH_BDB([4], [
+    AC_DEFINE([HAVE_BDB], [1], [Define if BDB exists.])
+    AC_SUBST(BDB_LDFLAGS)
+    AC_SUBST(BDB_CPPFLAGS)
+    AC_SUBST(BDB_LIBS)
+])
+
+AX_CHECK_LIBRARY(LDAP, [ldap.h], [ldap], [], [AC_MSG_ERROR([Unable to find OpenLDAP])])
 
 # Checks for header files.
 AC_HEADER_DIRENT
@@ -34,12 +41,6 @@ AC_FUNC_CLOSEDIR_VOID
 AC_FUNC_MALLOC
 AC_FUNC_FORK
 AC_CHECK_FUNCS([dup2 memset strcasecmp strdup strerror strncasecmp strrchr])
-
-if test "x$srcdir" = x.; then
-extrasub="$extrasub
-/^srcdir=/d
-/^SRCPFX/d"
-fi
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
