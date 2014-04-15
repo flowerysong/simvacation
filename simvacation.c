@@ -40,8 +40,6 @@
 #include <fcntl.h>
 #include <pwd.h>
 
-#define DB_DBM_HSEARCH    1
-#include <db.h>
 #include <limits.h>
 #include <sysexits.h>
 #include <time.h>
@@ -60,6 +58,8 @@
 #include <ldap.h>
 
 #include "simvacation.h"
+#include "backend_bdb.h"
+#include "backend_vdb.h"
 
 /*
  *  VACATION -- return a message to the sender when on vacation.
@@ -70,20 +70,14 @@
  *	vacation" loops.
  */
 
-void    bdb_err_log( const DB_ENV *, const char *, const char * );
 int     check_from();
-DB      *initialize( char *f );
-char    *makevdbpath();
-void    myexit( DB *, int );
+void    myexit( int );
 int     nsearch( char *, char * );
 int     pexecv( char *path, char ** );
-void    readheaders( DB * );
+void    readheaders();
 int     update_header( struct header *, char * );
 int     check_header( char *, const char * );
-int     recent( DB * );
 int     sendmessage( char *, char ** );
-int     setinterval( DB *, time_t );
-int     setreply( DB * );
 void    usage( char * );
 
 
@@ -96,17 +90,6 @@ void    usage( char * );
 #define	MAXLINE	1000
 #define PRETTYLINE 80
 
-/* From tzfile.h */
-#define SECSPERMIN      60
-#define MINSPERHOUR     60
-#define HOURSPERDAY     24
-#define DAYSPERWEEK     7
-#define DAYSPERNYEAR    365
-#define DAYSPERLYEAR    366
-#define SECSPERHOUR     (SECSPERMIN * MINSPERHOUR)
-#define SECSPERDAY      ((time_t) SECSPERHOUR * HOURSPERDAY)
-#define MONSPERYEAR     12
-
 typedef struct alias {
 	struct alias *next;
 	char *name;
@@ -115,6 +98,8 @@ ALIAS		*names;
 
 struct headers  *h;
 static char    from[MAXLINE];
+
+struct vdb      *vdb;
 
 static char	*dn;
 static char	**xdn;
@@ -126,10 +111,13 @@ static char	*fallback_vmsg[] = {
 extern int optind, opterr;
 extern char *optarg;
 
+int debug;
+
 
     int
 main( int argc, char **argv )
 {
+    debug = 0;
     ALIAS *cur;
     time_t interval;
     int ch, rc, rval, i;
@@ -144,9 +132,7 @@ main( int argc, char **argv )
     LDAPMessage *result, *e;
     char **vac, **vacmsgs, **cnames;
 
-    char *vdbpath, vdbdir[MAXPATHLEN];
-    char *vdbroot = VDBDIR;
-    DB	 *dbp = NULL;    /* Berkeley DB instance */
+    vdb = NULL;
 
     char *progname;
 
@@ -167,8 +153,11 @@ main( int argc, char **argv )
 
     from[0] = '\0';
 
-    while (( ch = getopt( argc, argv, "f:r:s:h:p:v:" )) != EOF ) {
+    while (( ch = getopt( argc, argv, "df:r:s:h:p:" )) != EOF ) {
 	switch( (char) ch ) {
+        case 'd':
+            debug = 1;
+            break;
 	case 'f':
 	    strncpy(from, optarg, MAXLINE - 1);
 	    from[MAXLINE - 1] = '\0';
@@ -194,9 +183,6 @@ main( int argc, char **argv )
 		}
 		break;
 
-	    case 'v':	/* dir for vacation db files */
-		vdbroot = optarg;
-		break;
 	    case '?':
 	    default:
 		usage( progname );
@@ -207,8 +193,13 @@ main( int argc, char **argv )
 
     if ( !*argv ) {
 	usage( progname );
-	myexit( NULL, EX_USAGE );
+	myexit( EX_USAGE );
     }
+
+    if ( debug ) {
+        openlog( progname, LOG_NOWAIT | LOG_PERROR | LOG_PID, LOG_VACATION );
+    }
+
     /*
      * Timeout values for LDAP searches
      */
@@ -220,7 +211,7 @@ main( int argc, char **argv )
      */
     if (( ld = ldap_open( ldap_host, ldap_port )) == NULL ) {
 	syslog( LOG_INFO, "ldap: ldap_open failed" );
-	myexit( NULL, EX_TEMPFAIL ); /* Try again later */
+	myexit( EX_TEMPFAIL ); /* Try again later */
     }
 
     if (( rc = ldap_simple_bind_s( ld, BIND_DN, BIND_METHOD ))
@@ -228,7 +219,7 @@ main( int argc, char **argv )
 	ldap_get_option ( ld, LDAP_OPT_ERROR_STRING, &errmsgptr) ;
 	syslog( LOG_ALERT, "ldap: ldap_simple_bind failed: %s", errmsgptr);
 	free (errmsgptr);
-	myexit( NULL, EX_TEMPFAIL ); /* Try again later */
+	myexit( EX_TEMPFAIL ); /* Try again later */
     }
 
     /*
@@ -255,16 +246,16 @@ main( int argc, char **argv )
     }
     if ( rc != LDAP_SUCCESS ) {
 	syslog( LOG_ALERT, "ldap: ldap_search failed: %s", ldap_err2string( rc ));
-	myexit( NULL, rval );
+	myexit( rval );
     }		
 
     matches = ldap_count_entries( ld, result );
     if ( matches > 1 ) {
 	syslog( LOG_ALERT, "ldap: multiple matches for %s", rcpt );
-	myexit( NULL, EX_OK );
+	myexit( EX_OK );
     } else if ( matches == 0 ) {
 	syslog( LOG_ALERT, "ldap: no match for %s", rcpt );
-	myexit( NULL, EX_OK );
+	myexit( EX_OK );
     } else {
 	e = ldap_first_entry( ld, result );
 	dn = ldap_get_dn( ld, e );
@@ -279,52 +270,20 @@ main( int argc, char **argv )
 	     * on vacation??? syslog it
 	     */
 	    syslog( LOG_ALERT, "ldap: user %s is not on vacation", rcpt );
-	    myexit( NULL, EX_OK );
+	    myexit( EX_OK );
 	}
     }
 
-    /*
-     * Set path to db files
-     */
-    vdbpath = makevdbpath( vdbroot, rcpt );
-    sprintf( vdbdir, "%s.ddb", vdbpath );
+    vdb = malloc( sizeof( struct vdb ));
+    memset( vdb, 0, sizeof( struct vdb ));
 
-    /*
-    ** Create the database handle and Open the db
-    */
-    if ((rc = db_create( &dbp, NULL, 0)) != 0) {
-        syslog( LOG_ALERT,  "bdb: db_create: %s", db_strerror(rc));
-	myexit( NULL, EX_OK );
-    }   
-      
-    dbp->set_errpfx( dbp, "DB creation");
-    dbp->set_errcall( dbp, bdb_err_log);
-    if ((rc = dbp->set_pagesize( dbp, 1024)) != 0) {
-	dbp->err(dbp, rc, "set_pagesize");
-	(void)dbp->close( dbp, 0);
-	myexit( NULL, EX_OK );
-    } 
-    if ((rc = dbp->set_cachesize( dbp, 0, 32 * 1024, 0)) != 0) {
-	dbp->err( dbp, rc, "set_cachesize");
-	(void)dbp->close( dbp, 0);
-	myexit( NULL, EX_OK );
+    if ( vdb_init( vdb, rcpt ) != 0 ) {
+        myexit( EX_OK );
     }
-	
-    if ((rc = dbp->open(dbp,            /* DB handle */
-			NULL,           /* transaction handle */
-			vdbdir,         /* db file name */
-			NULL,           /* database name */
-			DB_BTREE,       /* DB type */
-			DB_CREATE,      /* Create db if it doesn't exist */
-			0664)) != 0) {
-	dbp->err(dbp, rc, "%s: open", vdbpath);
-	syslog( LOG_ALERT, "bdb: %s: %s\n", vdbpath, strerror( errno ));
-	myexit( dbp, EX_OK );
-    }
-    dbp->set_errpfx( dbp, "");
 
-    if (interval != -1)
-	setinterval(dbp, interval);
+    if (interval != -1) {
+	vdb_store_interval( vdb, interval );
+    }
 
     /*
      * Create a linked list of all names this user
@@ -332,7 +291,7 @@ main( int argc, char **argv )
      */
     if ( !( cur = (ALIAS *) malloc( sizeof( ALIAS )))) {
 	syslog( LOG_ALERT, "malloc for alias failed");
-	myexit( dbp, EX_TEMPFAIL );
+	myexit( EX_TEMPFAIL );
     }
     cur->name = rcpt;
     cur->next = NULL;
@@ -340,18 +299,18 @@ main( int argc, char **argv )
     for ( i = 0; cnames && cnames[i] != NULL; i++ ) {
 	if ( !( cur->next = (ALIAS *) malloc( sizeof( ALIAS )))) {
 	    syslog( LOG_ALERT, "malloc for alias failed");
-	    myexit( dbp, EX_TEMPFAIL );
+	    myexit( EX_TEMPFAIL );
 	}
 	cur = cur->next;
 	cur->name = cnames[i];
 	cur->next = NULL;
     }
 
-    readheaders( dbp );
+    readheaders();
 
-    if ( !recent( dbp )) {
+    if ( !vdb_recent( vdb, from )) {
 	char rcptstr[MAXLINE];
-	setreply( dbp );
+	vdb_store_reply( vdb, from );
 	sprintf(rcptstr, "%s@%s", rcpt, DOMAIN);
 	sendmessage( rcptstr, vacmsgs );
 	syslog( LOG_DEBUG, "mail: sent message for %s to %s from %s",
@@ -360,9 +319,8 @@ main( int argc, char **argv )
 	syslog( LOG_DEBUG, "mail: suppressed message for %s to %s",
 		rcpt, from );
     }
-    dbp->close(dbp, 0);	
 
-    return( 0 );
+    myexit( EX_OK );
 }
 
 /*
@@ -370,7 +328,7 @@ main( int argc, char **argv )
  *	read mail headers
  */
     void
-readheaders( DB * dbp )
+readheaders( )
 {
     ALIAS *cur;
     char *p;
@@ -417,7 +375,7 @@ readheaders( DB * dbp )
             }
             if ( strncasecmp( p, "no", 2 ) != 0 ) {
                 syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
-                myexit( dbp, EX_OK );
+                myexit( EX_OK );
             }
         }
         /* RFC 3834 2
@@ -432,7 +390,7 @@ readheaders( DB * dbp )
              */
             state = HEADER_NOREPLY;
             syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
-            myexit( dbp, EX_OK );
+            myexit( EX_OK );
         }
         else if ( check_header( buf, "Precedence" ) == 0 ) {
             /* RFC 3834 2 
@@ -458,7 +416,7 @@ readheaders( DB * dbp )
                      strncasecmp( p, "bulk", 4 ) == 0 ||
                      strncasecmp( p, "list", 4 ) == 0 ) {
                     syslog( LOG_DEBUG, "readheaders: suppressing message: precedence %s", p );
-                    myexit( dbp, EX_OK );
+                    myexit( EX_OK );
                 }
             }
         }
@@ -496,7 +454,7 @@ readheaders( DB * dbp )
             state = HEADER_NOREPLY;
             if ( nsearch( "OOF", buf ) || nsearch( "All", buf )) {
                 syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
-                myexit( dbp, EX_OK );
+                myexit( EX_OK );
             }
         }
         /* RFC 3834 2 
@@ -545,19 +503,19 @@ readheaders( DB * dbp )
 
     if ( !*from ) {
         syslog( LOG_NOTICE, "readheaders: skipping message: unknown sender" );
-        myexit( dbp, EX_OK );
+        myexit( EX_OK );
     }
 
     syslog( LOG_DEBUG, "readheaders: mail from %s", from );
 
     if ( !tome ) {
 	syslog( LOG_NOTICE, "readheaders: suppressing message: mail does not appear to be to user %s", dn );
-	myexit( dbp, EX_OK );
+	myexit( EX_OK );
     }
 
     if ( check_from()) {
         syslog( LOG_NOTICE, "readheaders: suppressing message: bad sender %s", from );
-        myexit( dbp, EX_OK );
+        myexit( EX_OK );
     }
 
 }
@@ -680,109 +638,6 @@ check_from()
     }
 
     return( 0 );
-}
-
-
-/*
- * recent --
- *	find out if user has gotten a vacation message recently.
- */
-    int
-recent( DB *dbp )
-{
-    DBT		key;
-    DBT		data;
-    time_t	then;
-    time_t	next;
-    int		rc;
-
-    /* get interval time */
-    memset (&key, 0, sizeof( key ));
-    key.data = VIT;
-    key.size = strlen(VIT) - 1;
-
-    memset (&data, 0, sizeof( data ));
-
-    data.data = &next;
-    data.size = sizeof( next );
-
-    next = 0;   /* for debugging */
-    dbp->set_errpfx(dbp, "Getting VIT");
-    if ((rc = dbp->get(dbp, NULL, &key, &data, 0)) == 0) {
-	memcpy (&next, data.data, sizeof( next ));
-    } else {
-	next = SECSPERDAY * DAYSPERWEEK;
-    }
-
-    /* get record for this email address */
-    memset (&key, 0, sizeof( key ));
-    key.data = from;
-    key.size = strlen( from );
-
-    memset (&data, 0, sizeof( data ));
-    then = 0;   /* for debugging */
-    dbp->set_errpfx(dbp, "Getting recent time");
-    if ((rc = dbp->get(dbp, NULL, &key, &data, 0)) == 0) {
-	memcpy (&then, data.data, sizeof( then ));
-
-	if ( next == LONG_MAX || then + next > time(( time_t *) NULL ))
-	    return( 1 );
-    }
-    return( 0 );
-}
-
-/*
- * setinterval --
- *	store the reply interval
- */
-   int
-setinterval( DB *dbp, time_t interval )
-{
-    DBT  key;
-    DBT  data;
-    int  rc;
-
-    memset (&key, 0, sizeof ( key ));
-    key.data = VIT;
-    key.size = strlen( VIT ) - 1;
-    memset (&data, 0, sizeof ( data ));
-    data.data = (char *) &interval;
-    data.size = sizeof( interval );
-    rc = dbp->put(dbp, NULL, &key, &data, (u_int32_t) 0); /* allow overwrites */
-    if (rc != 0) {
-	syslog( LOG_ALERT, "bdb: error while putting interval: %d, %s", 
-		rc, db_strerror(rc) );
-    }
-    return (rc);
-}
-
-/*
- * setreply --
- *	store that this user knows about the vacation.
- */
-   int
-setreply(DB * dbp)
-{
-    DBT  key;
-    DBT  data;
-    int  rc;
-
-    time_t now;
-
-    memset (&key, 0, sizeof ( key ));
-    key.data = from;
-    key.size = strlen( from );
-    (void) time( &now );
-    memset (&data, 0, sizeof ( data ));
-    data.data = (char *) &now;
-    data.size = sizeof( now );
-    rc = dbp->put(dbp, NULL, &key, &data, 0);  /* allow overwrites */
-    if (rc != 0) {
-	syslog( LOG_ALERT, "bdb: error while putting reply time: %d, %s", 
-		rc, db_strerror(rc) );
-    }
-
-    return (rc);
 }
 
 /*
@@ -915,54 +770,16 @@ usage( char * progname)
 {
     /* FIXME: wth? */
     syslog(LOG_NOTICE, "uid %u: usage: %s login\n", getuid(), progname);
-    myexit( NULL, 0 );
+    myexit( 0 );
 }
 
 
-/*
- * makevdbpath - compute the path to the user's db file.  One level
- * of indirection, e.g. "bob" has vacation files in VDBDIR/b/bob.{dir,pag}
- * Returns path *up to* the file, but not the files themselves.
- */
-    char *
-makevdbpath( char *dir, char *user)
-{
-    char	buf[MAXPATHLEN];
-
-    if (( user == NULL ) || ( dir == NULL )) {
-	return( NULL );
-    }
-
-    if ( (strlen(dir) + strlen (user) + 4) > sizeof (buf) ) {
-	return( NULL );
-    }
-
-    sprintf( buf, "%s/%c/%s", dir, user[0], user );
-    return( strdup( buf ));
-}
-
-/*
- * bdb_err_log --
- *	Berkeley DB error log callback.
- */
-    void 
-bdb_err_log ( const DB_ENV * dbenv, const char *errpfx, const char *msg )
-{
-    syslog( LOG_ALERT, "bdb: %s: %s", errpfx, msg);
-    return;
-}
-
-/*
- * myexit --
- *	we're outta here...
- */
     void
-myexit( DB * dbp, int eval )
+myexit( int retval )
 {
-    if ( dbp )
-	(void)dbp->close( dbp, 0);
+    vdb_close( vdb );
 
-    exit( eval );
+    exit( retval );
 }
 
 

@@ -47,6 +47,17 @@
 /* FIXME: Add Auto: to Subject? */
 #define SUBJECTPREFIX     "Out of email contact"
 
+/* From tzfile.h */
+#define SECSPERMIN      60
+#define MINSPERHOUR     60
+#define HOURSPERDAY     24
+#define DAYSPERWEEK     7
+#define DAYSPERNYEAR    365
+#define DAYSPERLYEAR    366
+#define SECSPERHOUR     (SECSPERMIN * MINSPERHOUR)
+#define SECSPERDAY      ((time_t) SECSPERHOUR * HOURSPERDAY)
+#define MONSPERYEAR     12
+
 struct header {
     char    *text;
     size_t  size;

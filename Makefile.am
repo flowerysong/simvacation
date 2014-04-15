@@ -4,7 +4,7 @@ AM_CPPFLAGS = @CPPFLAGS@ @LDAP_CPPFLAGS@ @BDB_CPPFLAGS@
 
 bin_PROGRAMS = simvacation simunvacation simvacreport
 
-simvacation_SOURCES = simvacation.c
+simvacation_SOURCES = backend_bdb.c simvacation.c
 simvacation_LDADD = -lldap -llber @BDB_LIBS@
 
 simunvacation_SOURCES = simunvacation.c
