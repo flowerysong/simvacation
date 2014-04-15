@@ -34,19 +34,10 @@
  */
 
 
-#include <sys/param.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <fcntl.h>
-#include <pwd.h>
-
 #include <limits.h>
 #include <sysexits.h>
 #include <time.h>
 #include <syslog.h>
-#include <errno.h>
-#include <unistd.h>
-#include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
