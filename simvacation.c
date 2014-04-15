@@ -79,6 +79,7 @@ int     nsearch( char *, char * );
 int     pexecv( char *path, char ** );
 void    readheaders( DB * );
 int     update_header( struct header *, char * );
+int     check_header( char *, const char * );
 int     recent( DB * );
 int     sendmessage( char *, char ** );
 int     setinterval( DB *, time_t );
@@ -390,15 +391,15 @@ readheaders( DB * dbp )
             if (( p = index( from, '\n' )))
                 *p = '\0';
         }
-        if ( strncasecmp( buf, "Message-ID:", 11 ) == 0 ) {
+        if ( check_header( buf, "Message-ID:" ) == 0 ) {
             state = HEADER_UPDATE;
             current_hdr = &h->messageid;
         }
-        else if ( strncasecmp( buf, "References:", 11 ) == 0 ) {
+        else if ( check_header( buf, "References:" ) == 0 ) {
             state = HEADER_UPDATE;
             current_hdr = &h->references;
         }
-        else if ( strncasecmp( buf, "In-Reply-To:", 12 ) == 0 ) {
+        else if ( check_header( buf, "In-Reply-To:" ) == 0 ) {
             state = HEADER_UPDATE;
             current_hdr = &h->inreplyto;
         }
@@ -407,7 +408,7 @@ readheaders( DB * dbp )
          *  message which contains an Auto-Submitted header field (see below),
          *  where that field has any value other than "no"
          */
-        else if ( strncasecmp( buf, "Auto-Submitted:", 15 ) == 0 ) {
+        else if ( check_header( buf, "Auto-Submitted:" ) == 0 ) {
             state = HEADER_NOREPLY;
             p = buf + 15;
             while ( *++p && isspace( *p ));
@@ -424,7 +425,7 @@ readheaders( DB * dbp )
          *  which contains any header or content which makes it appear to the
          *  responder that a response would not be appropriate.
          */
-        else if ( strncasecmp( buf, "List-", 5 ) == 0 ) {
+        else if ( check_header( buf, "List-" ) == 0 ) {
             /* RFC 3834 2
              *  For similar reasons, a responder MAY ignore any subject message
              *  with a List-* field [RFC2369].
@@ -433,7 +434,7 @@ readheaders( DB * dbp )
             syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
             myexit( dbp, EX_OK );
         }
-        else if ( strncasecmp( buf, "Precedence", 10 ) == 0 ) {
+        else if ( check_header( buf, "Precedence" ) == 0 ) {
             /* RFC 3834 2 
              *  For instance, if the subject message contained a
              *  Precedence header field [RFC2076] with a value of
@@ -461,7 +462,7 @@ readheaders( DB * dbp )
                 }
             }
         }
-        else if ( strncasecmp( buf, "X-Auto-Response-Suppress:", 25 ) == 0 ) {
+        else if ( check_header( buf, "X-Auto-Response-Suppress:" ) == 0 ) {
             /* MS-OXCMAIL 2.1.3.2.20
              *
              * X-Auto-Response-Suppress value   | Meaning
@@ -506,13 +507,13 @@ readheaders( DB * dbp )
          *  a recipient (e.g., To, Cc, Bcc, Resent-To, Resent-Cc, or Resent-
          *  Bcc) field of the subject message.
          */
-        else if ( strncasecmp( buf, "Cc:", 3 ) == 0 ) {
+        else if ( check_header( buf, "Cc:" ) == 0 ) {
             state = HEADER_RECIPIENT;
         }
-        else if ( strncasecmp( buf, "To:", 3 ) == 0 ) {
+        else if ( check_header( buf, "To:" ) == 0 ) {
             state = HEADER_RECIPIENT;
         }
-        else if ( strncasecmp( buf, "Subject:", 8 ) == 0 ) {
+        else if ( check_header( buf, "Subject:" ) == 0 ) {
             state = HEADER_UPDATE;
             current_hdr = &h->subject;
 	}
@@ -559,6 +560,11 @@ readheaders( DB * dbp )
         myexit( dbp, EX_OK );
     }
 
+}
+
+    int
+check_header( char *line, const char *field ) {
+    return strncasecmp( field, line, strlen( field ));
 }
 
     int
