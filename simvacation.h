@@ -23,7 +23,7 @@
 
 #define HEADER_UNKNOWN      0
 #define HEADER_RECIPIENT    1
-#define HEADER_SUBJECT      2
+#define HEADER_UPDATE       2
 #define HEADER_NOREPLY      3
 
 #define VIT     "__VACATION__INTERVAL__TIMER__"
@@ -46,5 +46,17 @@
 #define DOMAIN          "umich.edu"
 /* FIXME: Add Auto: to Subject? */
 #define SUBJECTPREFIX     "Out of email contact"
+
+struct header {
+    char    *text;
+    size_t  size;
+};
+
+struct headers {
+    struct header   subject;
+    struct header   messageid;
+    struct header   references;
+    struct header   inreplyto;
+};
 
 #endif

@@ -78,6 +78,7 @@ void    myexit( DB *, int );
 int     nsearch( char *, char * );
 int     pexecv( char *path, char ** );
 void    readheaders( DB * );
+int     update_header( struct header *, char * );
 int     recent( DB * );
 int     sendmessage( char *, char ** );
 int     setinterval( DB *, time_t );
@@ -85,7 +86,14 @@ int     setreply( DB * );
 void    usage( char * );
 
 
-#define	MAXLINE	1024			/* max line from mail header */
+/* RFC 2822 2.1.1
+ *  There are two limits that this standard places on the number of
+ *  characters in a line. Each line of characters MUST be no more than
+ *  998 characters, and SHOULD be no more than 78 characters, excluding
+ *  the CRLF.
+ */
+#define	MAXLINE	1000
+#define PRETTYLINE 80
 
 /* From tzfile.h */
 #define SECSPERMIN      60
@@ -104,9 +112,9 @@ typedef struct alias {
 } ALIAS;
 ALIAS		*names;
 
-static char	from[MAXLINE];
-static char	subject[MAXLINE];
-static char     messageid[MAXLINE];
+struct headers  *h;
+static char    from[MAXLINE];
+
 static char	*dn;
 static char	**xdn;
 static char	*fallback_vmsg[] = {
@@ -153,9 +161,10 @@ main( int argc, char **argv )
     opterr = 0;
     interval = -1;
 
-    from[0]      = '\0';
-    subject[0]   = '\0';
-    messageid[0] = '\0';
+    h = malloc( sizeof( struct headers ));
+    memset( h, 0, sizeof( struct headers ));
+
+    from[0] = '\0';
 
     while (( ch = getopt( argc, argv, "f:r:s:h:p:v:" )) != EOF ) {
 	switch( (char) ch ) {
@@ -366,6 +375,7 @@ readheaders( DB * dbp )
     char *p;
     int tome, state;
     char buf[MAXLINE];
+    struct header *current_hdr;
 
     state = HEADER_UNKNOWN;
     tome = 0;
@@ -381,12 +391,16 @@ readheaders( DB * dbp )
                 *p = '\0';
         }
         if ( strncasecmp( buf, "Message-ID:", 11 ) == 0 ) {
-            state = HEADER_UNKNOWN; /* FIXME */
-            strncpy( messageid, buf + 11, MAXLINE - 1);
-            messageid[MAXLINE - 1] = '\0';
-            if (( p = index( messageid, '\n' ))) {
-                *p = '\0';
-            }
+            state = HEADER_UPDATE;
+            current_hdr = &h->messageid;
+        }
+        else if ( strncasecmp( buf, "References:", 11 ) == 0 ) {
+            state = HEADER_UPDATE;
+            current_hdr = &h->references;
+        }
+        else if ( strncasecmp( buf, "In-Reply-To:", 12 ) == 0 ) {
+            state = HEADER_UPDATE;
+            current_hdr = &h->inreplyto;
         }
         /* RFC 3834 2
          *  Automatic responses SHOULD NOT be issued in response to any
@@ -499,7 +513,8 @@ readheaders( DB * dbp )
             state = HEADER_RECIPIENT;
         }
         else if ( strncasecmp( buf, "Subject:", 8 ) == 0 ) {
-            state = HEADER_SUBJECT;
+            state = HEADER_UPDATE;
+            current_hdr = &h->subject;
 	}
         else if ( !isspace( *buf )) {
             /* Not a continuation of the previous header line, reset flag
@@ -520,26 +535,9 @@ readheaders( DB * dbp )
 		tome += nsearch( cur->name, buf );
 	    }
             break;
-        case HEADER_SUBJECT:
-            if ( *subject ) {
-                /* Continuation of previous header line */
-                p = buf;
-            }
-            else {
-                /* Remove Subject: */
-                p = index( buf, ':' );
-                while ( p && *++p && isspace( *p ));
-            }
+        case HEADER_UPDATE:
+            update_header( current_hdr, buf );
 
-            if ( *p ) {
-                strncat( subject, p, MAXLINE - strlen( subject ) - 1 );
-            }
-
-            /* get rid of newline */
-            p = index( subject, '\n' );
-            if ( p ) {
-                *p = '\0';
-            }
             break;
 	}
     }
@@ -561,6 +559,34 @@ readheaders( DB * dbp )
         myexit( dbp, EX_OK );
     }
 
+}
+
+    int
+update_header( struct header *hdr, char *value )
+{   
+    char *p;
+
+    /* Strip newline */
+    if (( p = index( value, '\n' )) != NULL ) {
+        *p = '\0';
+    }
+
+    if ( hdr->size == 0 ) {
+        /* Strip the field name */
+        p = index( value, ':' );
+        while ( p && *++p && isspace( *p ));
+
+        hdr->size = strlen( p ) + 1;
+        hdr->text = malloc( hdr->size );
+        memset( hdr->text, 0, hdr->size );
+    }
+    else {
+        p = value;
+        hdr->size = strlen( p ) + hdr->size + 1;
+        hdr->text = realloc( hdr->text, hdr->size );
+    }
+
+    strcat( hdr->text, p );
 }
 
 /*
@@ -813,11 +839,11 @@ sendmessage( char *myname, char **vmsg )
      *  followed by an ASCII SPACE character (0x20).
      */
     printf( "Subject: %s", SUBJECTPREFIX );
-    if ( subject[0] ) {
-	if ( strncasecmp( subject, "Re:", 3 )) {
-	    printf( " (Re: %s)", subject );
+    if ( h->subject.size > 0 ) {
+	if ( strncasecmp( h->subject.text, "Re:", 3 )) {
+	    printf( " (Re: %s)", h->subject.text );
 	} else {
-	    printf( " (%s)", subject );
+	    printf( " (%s)", h->subject.text );
 	}
     }
     printf( "\n" );
@@ -828,7 +854,7 @@ sendmessage( char *myname, char **vmsg )
      *  subject message, according to the rules in [RFC2822] section
      *  3.6.4.
      */
-    if ( messageid[0] ) {
+    if ( h->messageid.size > 0 ) {
         /* RFC 2822 3.6.4
          *  The "In-Reply-To:" field will contain the contents of the
          *  "Message-ID:" field of the message to which this one is a reply
@@ -836,9 +862,9 @@ sendmessage( char *myname, char **vmsg )
          *  in any of the parent messages, then the new message will have no
          *  "In-Reply-To:" field.
          */
-        printf( "In-Reply-To: %s\n", messageid );
+        printf( "In-Reply-To: %s\n", h->messageid.text );
     }
-    if ( messageid[0] ) {
+    if ( h->references.size > 0 ) {
         /* FIXME: RFC compliance */
         /* RFC 2822 3.6.4
          *  The "References:" field will contain the contents of the 
@@ -850,7 +876,7 @@ sendmessage( char *myname, char **vmsg )
          *  "In-Reply-To:" field followed by the contents of the parent's
          *  "Message-ID:" field (if any).
          */
-        printf( "References: %s\n", messageid );
+        printf( "References: %s\n", h->references.text );
     }
     /* RFC 3834 3.1.7
      *  The Auto-Submitted field, with a value of "auto-replied", SHOULD be
