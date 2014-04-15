@@ -725,20 +725,27 @@ sendmessage( char *myname, char **vmsg )
          */
         printf( "In-Reply-To: %s\n", h->messageid.text );
     }
+
+    /* RFC 2822 3.6.4
+     *  The "References:" field will contain the contents of the 
+     *  parent's "References:" field (if any) followed by the contents
+     *  of the parent's "Message-ID:" field (if any). If the parent
+     *  message does not contain a "References:" field but does have an
+     *  "In-Reply-To:" field containing a single message identifier, then
+     *  the "References:" field will contain the contents of the parent's
+     *  "In-Reply-To:" field followed by the contents of the parent's
+     *  "Message-ID:" field (if any).
+     */
     if ( h->references.size > 0 ) {
-        /* FIXME: RFC compliance */
-        /* RFC 2822 3.6.4
-         *  The "References:" field will contain the contents of the 
-         *  parent's "References:" field (if any) followed by the contents
-         *  of the parent's "Message-ID:" field (if any). If the parent
-         *  message does not contain a "References:" field but does have an
-         *  "In-Reply-To:" field containing a single message identifier, then
-         *  the "References:" field will contain the contents of the parent's
-         *  "In-Reply-To:" field followed by the contents of the parent's
-         *  "Message-ID:" field (if any).
-         */
-        printf( "References: %s\n", h->references.text );
+        printf( "References: %s %s\n", h->references.text, h->messageid.text );
     }
+    else if ( h->inreplyto.size > 0 ) {
+        printf( "References: %s %s\n", h->inreplyto.text, h->messageid.text );
+    }
+    else if ( h->messageid.size > 0 ) {
+        printf( "References: %s\n", h->messageid.text );
+    }
+
     /* RFC 3834 3.1.7
      *  The Auto-Submitted field, with a value of "auto-replied", SHOULD be
      *  included in the message header of any automatic response.
