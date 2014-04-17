@@ -25,6 +25,8 @@
 #include <lber.h>
 #include <ldap.h>
 
+#include "sds/sds.h"
+
 #define LDAP_HOST       "ldap.itd.umich.edu"
 #define BIND_DN         NULL
 #define BIND_METHOD     NULL

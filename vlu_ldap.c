@@ -261,11 +261,11 @@ vlu_aliases( struct vlu *vlu, char *rcpt ) {
 
     char *
 vlu_message( struct vlu *vlu, char *rcpt ) {
-    char **rawmsg;
-    int i, pos;
-    size_t len;
-    char *vacmsg;
-    char *p;
+    char    **rawmsg;
+    int     i;
+    size_t  len;
+    sds     vacmsg;
+    char    *p;
 
     rawmsg = ldap_get_values( vlu->ld, vlu->result, ATTR_VACMSG );
 
@@ -273,24 +273,15 @@ vlu_message( struct vlu *vlu, char *rcpt ) {
         return NULL;
     }
     
-    pos = 0;
-    len = 50;
-    vacmsg = malloc( len );
+    vacmsg = sdsempty();
 
     for ( i = 0; rawmsg[i] != NULL; i++ ) {
-        for ( p = rawmsg[i]; *p ; p++ ) {
-            if ( *p == '$' ) {
-                vacmsg[ pos ] = '\n';
-            }
-            else {
-                vacmsg[ pos ] = *p;
-            }
+        vacmsg = sdscat( vacmsg, rawmsg[i] );
+    }
 
-            pos++;
-            if ( pos >= len ) {
-                len += 50;
-                vacmsg = realloc( vacmsg, len );
-            }
+    for ( p = vacmsg; *p ; p++ ) {
+        if ( *p == '$' ) {
+            *p = '\n';
         }
     }
 
