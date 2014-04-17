@@ -61,7 +61,7 @@ void    myexit( int );
 int     nsearch( char *, char * );
 int     pexecv( char *path, char ** );
 void    readheaders();
-int     update_header( struct header *, char * );
+sds     append_header( sds, char *, int );
 int     check_header( char *, const char * );
 int     sendmessage( char *, char * );
 void    usage( char * );
@@ -217,9 +217,9 @@ readheaders( )
 {
     struct name_list *cur;
     char *p;
-    int tome, state;
+    int tome, state, stripfield = 0;
     char buf[MAXLINE];
-    struct header *current_hdr;
+    sds *current_hdr;
 
     state = HEADER_UNKNOWN;
     tome = 0;
@@ -235,15 +235,18 @@ readheaders( )
                 *p = '\0';
         }
         if ( check_header( buf, "Message-ID:" ) == 0 ) {
-            state = HEADER_UPDATE;
+            state = HEADER_APPEND;
+            stripfield = 1;
             current_hdr = &h->messageid;
         }
         else if ( check_header( buf, "References:" ) == 0 ) {
-            state = HEADER_UPDATE;
+            state = HEADER_APPEND;
+            stripfield = 1;
             current_hdr = &h->references;
         }
         else if ( check_header( buf, "In-Reply-To:" ) == 0 ) {
-            state = HEADER_UPDATE;
+            state = HEADER_APPEND;
+            stripfield = 1;
             current_hdr = &h->inreplyto;
         }
         /* RFC 3834 2
@@ -357,7 +360,8 @@ readheaders( )
             state = HEADER_RECIPIENT;
         }
         else if ( check_header( buf, "Subject:" ) == 0 ) {
-            state = HEADER_UPDATE;
+            state = HEADER_APPEND;
+            stripfield = 1;
             current_hdr = &h->subject;
 	}
         else if ( !isspace( *buf )) {
@@ -379,8 +383,9 @@ readheaders( )
 		tome += nsearch( cur->name, buf );
 	    }
             break;
-        case HEADER_UPDATE:
-            update_header( current_hdr, buf );
+        case HEADER_APPEND:
+            *current_hdr = append_header( *current_hdr, buf, stripfield );
+            stripfield = 0;
 
             break;
 	}
@@ -410,32 +415,21 @@ check_header( char *line, const char *field ) {
     return strncasecmp( field, line, strlen( field ));
 }
 
-    int
-update_header( struct header *hdr, char *value )
-{   
-    char *p;
-
-    /* Strip newline */
-    if (( p = index( value, '\n' )) != NULL ) {
-        *p = '\0';
+    sds
+append_header( sds str, char *value, int stripfield )
+{
+    if ( stripfield ) {
+        value = index( value, ':' );
+        while ( value && *++value && isspace( *value ));
     }
 
-    if ( hdr->size == 0 ) {
-        /* Strip the field name */
-        p = index( value, ':' );
-        while ( p && *++p && isspace( *p ));
-
-        hdr->size = strlen( p ) + 1;
-        hdr->text = malloc( hdr->size );
-        memset( hdr->text, 0, hdr->size );
-    }
-    else {
-        p = value;
-        hdr->size = strlen( p ) + hdr->size + 1;
-        hdr->text = realloc( hdr->text, hdr->size );
+    if ( str == NULL ) {
+        str = sdsempty();
     }
 
-    strcat( hdr->text, p );
+    sds s = sdscat( str, value );
+    sdstrim( s, "\n" );
+    return s;
 }
 
 /*
@@ -585,11 +579,11 @@ sendmessage( char *myname, char *vmsg )
      *  followed by an ASCII SPACE character (0x20).
      */
     printf( "Subject: %s", SUBJECTPREFIX );
-    if ( h->subject.size > 0 ) {
-	if ( strncasecmp( h->subject.text, "Re:", 3 )) {
-	    printf( " (Re: %s)", h->subject.text );
+    if ( sdslen( h->subject ) > 0 ) {
+	if ( check_header( h->subject, "Re:" ) != 0 ) {
+	    printf( " (Re: %s)", h->subject );
 	} else {
-	    printf( " (%s)", h->subject.text );
+	    printf( " (%s)", h->subject );
 	}
     }
     printf( "\n" );
@@ -600,7 +594,7 @@ sendmessage( char *myname, char *vmsg )
      *  subject message, according to the rules in [RFC2822] section
      *  3.6.4.
      */
-    if ( h->messageid.size > 0 ) {
+    if ( sdslen( h->messageid ) > 0 ) {
         /* RFC 2822 3.6.4
          *  The "In-Reply-To:" field will contain the contents of the
          *  "Message-ID:" field of the message to which this one is a reply
@@ -608,7 +602,7 @@ sendmessage( char *myname, char *vmsg )
          *  in any of the parent messages, then the new message will have no
          *  "In-Reply-To:" field.
          */
-        printf( "In-Reply-To: %s\n", h->messageid.text );
+        printf( "In-Reply-To: %s\n", h->messageid );
     }
 
     /* RFC 2822 3.6.4
@@ -621,14 +615,14 @@ sendmessage( char *myname, char *vmsg )
      *  "In-Reply-To:" field followed by the contents of the parent's
      *  "Message-ID:" field (if any).
      */
-    if ( h->references.size > 0 ) {
-        printf( "References: %s %s\n", h->references.text, h->messageid.text );
+    if ( sdslen( h->references ) > 0 ) {
+        printf( "References: %s %s\n", h->references, h->messageid );
     }
-    else if ( h->inreplyto.size > 0 ) {
-        printf( "References: %s %s\n", h->inreplyto.text, h->messageid.text );
+    else if ( sdslen( h->inreplyto ) > 0 ) {
+        printf( "References: %s %s\n", h->inreplyto, h->messageid );
     }
-    else if ( h->messageid.size > 0 ) {
-        printf( "References: %s\n", h->messageid.text );
+    else if ( sdslen( h->messageid ) > 0 ) {
+        printf( "References: %s\n", h->messageid );
     }
 
     /* RFC 3834 3.1.7

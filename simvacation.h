@@ -20,10 +20,11 @@
  */
 
 #include <config.h>
+#include "sds/sds.h"
 
 #define HEADER_UNKNOWN      0
 #define HEADER_RECIPIENT    1
-#define HEADER_UPDATE       2
+#define HEADER_APPEND       2
 #define HEADER_NOREPLY      3
 
 #ifndef CONFFILE
@@ -55,16 +56,11 @@ struct name_list {
     char *name;
 };
 
-struct header {
-    char    *text;
-    size_t  size;
-};
-
 struct headers {
-    struct header   subject;
-    struct header   messageid;
-    struct header   references;
-    struct header   inreplyto;
+    sds    subject;
+    sds    messageid;
+    sds    references;
+    sds    inreplyto;
 };
 
 #endif
