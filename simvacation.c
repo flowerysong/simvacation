@@ -51,6 +51,8 @@
 #include "simvacation.h"
 #include "vdb_berkeley.h"
 #include "vdb.h"
+#include "vlu_ldap.h"
+#include "vlu.h"
 
 /*
  *  VACATION -- return a message to the sender when on vacation.
@@ -68,7 +70,7 @@ int     pexecv( char *path, char ** );
 void    readheaders();
 int     update_header( struct header *, char * );
 int     check_header( char *, const char * );
-int     sendmessage( char *, char ** );
+int     sendmessage( char *, char * );
 void    usage( char * );
 
 
@@ -81,12 +83,7 @@ void    usage( char * );
 #define	MAXLINE	1000
 #define PRETTYLINE 80
 
-typedef struct alias {
-	struct alias *next;
-	char *name;
-} ALIAS;
-ALIAS		*names;
-
+struct alias    *names;
 struct headers  *h;
 static char    from[MAXLINE];
 
@@ -109,26 +106,13 @@ int debug;
 main( int argc, char **argv )
 {
     debug = 0;
-    ALIAS *cur;
     time_t interval;
-    int ch, rc, rval, i;
+    int ch, rc;
     char *rcpt;
-    LDAP *ld;
-    char *ldap_host = LDAP_HOST;
-    char *searchbase = SEARCHBASE;
-    int ldap_port = LDAP_PORT;
-    static struct timeval timeout;
-    static char *attrs[] = { ATTR_ONVAC, ATTR_VACMSG, ATTR_CN, NULL };
-    char filter[64];
-    LDAPMessage *result, *e;
-    char **vac, **vacmsgs, **cnames;
-
-    vdb = NULL;
-
+    char *vacmsg;
     char *progname;
-
-    int matches;
-    char *errmsgptr;
+    char *vlu_config;
+    struct vlu *vlu;
 
     if ( (progname = strrchr( argv[0], '/' )) == NULL )
 	progname = strdup( argv[0] );
@@ -144,8 +128,11 @@ main( int argc, char **argv )
 
     from[0] = '\0';
 
-    while (( ch = getopt( argc, argv, "df:r:s:h:p:" )) != EOF ) {
+    while (( ch = getopt( argc, argv, "c:df:r:" )) != EOF ) {
 	switch( (char) ch ) {
+        case 'c':
+            vlu_config = optarg;
+            break;
         case 'd':
             debug = 1;
             break;
@@ -162,17 +149,6 @@ main( int argc, char **argv )
 	    else
 		interval = LONG_MAX;
 	    break;
-	    case 's':		/* seachbase */
-		searchbase = optarg;
-		break;
-	    case 'h':		/* ldap server */
-		ldap_host = optarg;
-		break;
-	    case 'p':		/* ldap port */
-		if ( isdigit( *optarg )) {
-		    ldap_port = atoi( optarg );
-		}
-		break;
 
 	    case '?':
 	    default:
@@ -191,78 +167,23 @@ main( int argc, char **argv )
         openlog( progname, LOG_NOWAIT | LOG_PERROR | LOG_PID, LOG_VACATION );
     }
 
-    /*
-     * Timeout values for LDAP searches
-     */
-    timeout.tv_sec = 30L;
-    timeout.tv_usec = 0L;
-
-    /*
-     * Open ldap connection and bind
-     */
-    if (( ld = ldap_open( ldap_host, ldap_port )) == NULL ) {
-	syslog( LOG_INFO, "ldap: ldap_open failed" );
-	myexit( EX_TEMPFAIL ); /* Try again later */
-    }
-
-    if (( rc = ldap_simple_bind_s( ld, BIND_DN, BIND_METHOD ))
-		 != LDAP_SUCCESS ) {
-	ldap_get_option ( ld, LDAP_OPT_ERROR_STRING, &errmsgptr) ;
-	syslog( LOG_ALERT, "ldap: ldap_simple_bind failed: %s", errmsgptr);
-	free (errmsgptr);
-	myexit( EX_TEMPFAIL ); /* Try again later */
-    }
-
-    /*
-     * See if the user is "on vacation", and if so, retrieve the
-     * vacationMessage attribute from their LDAP entry.
-     */
     rcpt = *argv;
-    sprintf( filter, "uid=%s", rcpt );	/* make LDAP search filter */
-    rc = ldap_search_st( ld, searchbase, LDAP_SCOPE_SUBTREE,
-		     filter, attrs, 0, &timeout, &result );
-    switch ( rc ) {
-    case LDAP_SUCCESS:
-	break;
-    case LDAP_SERVER_DOWN:
-    case LDAP_TIMEOUT:
-    case LDAP_BUSY:
-    case LDAP_UNAVAILABLE:
-    case LDAP_OTHER:
-    case LDAP_LOCAL_ERROR:
-	rval = EX_TEMPFAIL;	/* temporary errors */
-	break;
-    default:
-	rval = EX_OK;	/* permanent errors */
-    }
-    if ( rc != LDAP_SUCCESS ) {
-	syslog( LOG_ALERT, "ldap: ldap_search failed: %s", ldap_err2string( rc ));
-	myexit( rval );
-    }		
 
-    matches = ldap_count_entries( ld, result );
-    if ( matches > 1 ) {
-	syslog( LOG_ALERT, "ldap: multiple matches for %s", rcpt );
-	myexit( EX_OK );
-    } else if ( matches == 0 ) {
-	syslog( LOG_ALERT, "ldap: no match for %s", rcpt );
-	myexit( EX_OK );
-    } else {
-	e = ldap_first_entry( ld, result );
-	dn = ldap_get_dn( ld, e );
-	xdn = ldap_explode_dn( dn, 1 );
-	vac = ldap_get_values( ld, e, ATTR_ONVAC );
-	if ( vac && !strcasecmp( *vac, "TRUE" )) {
-	    vacmsgs = ldap_get_values( ld, e, ATTR_VACMSG );
-	    cnames = ldap_get_values( ld, e, ATTR_CN );
-	} else {
-	    /*
-	     * XXX why were we invoked if user is not
-	     * on vacation??? syslog it
-	     */
-	    syslog( LOG_ALERT, "ldap: user %s is not on vacation", rcpt );
-	    myexit( EX_OK );
-	}
+    vlu = vlu_init( vlu_config );
+    if ( vlu_connect( vlu ) != 0 ) {
+        myexit( EX_TEMPFAIL );
+    }
+    if ( rc = vlu_search( vlu, rcpt ) != VLU_RESULT_OK ) {
+        switch ( rc ) {
+        case VLU_RESULT_PERMFAIL:
+            /* We're done processing this message. */
+            myexit( EX_OK );
+
+        case VLU_RESULT_TEMPFAIL:
+        default:
+            myexit( EX_TEMPFAIL );
+        }
+        myexit( rc );
     }
 
     vdb = malloc( sizeof( struct vdb ));
@@ -276,26 +197,7 @@ main( int argc, char **argv )
 	vdb_store_interval( vdb, interval );
     }
 
-    /*
-     * Create a linked list of all names this user
-     * might get mail for - LDAP "commonName" attribute.
-     */
-    if ( !( cur = (ALIAS *) malloc( sizeof( ALIAS )))) {
-	syslog( LOG_ALERT, "malloc for alias failed");
-	myexit( EX_TEMPFAIL );
-    }
-    cur->name = rcpt;
-    cur->next = NULL;
-    names = cur;
-    for ( i = 0; cnames && cnames[i] != NULL; i++ ) {
-	if ( !( cur->next = (ALIAS *) malloc( sizeof( ALIAS )))) {
-	    syslog( LOG_ALERT, "malloc for alias failed");
-	    myexit( EX_TEMPFAIL );
-	}
-	cur = cur->next;
-	cur->name = cnames[i];
-	cur->next = NULL;
-    }
+    names = vlu_aliases( vlu, rcpt );
 
     readheaders();
 
@@ -303,7 +205,7 @@ main( int argc, char **argv )
 	char rcptstr[MAXLINE];
 	vdb_store_reply( vdb, from );
 	sprintf(rcptstr, "%s@%s", rcpt, DOMAIN);
-	sendmessage( rcptstr, vacmsgs );
+	sendmessage( rcptstr, vacmsg );
 	syslog( LOG_DEBUG, "mail: sent message for %s to %s from %s",
 			rcpt, from, rcptstr );
     } else {
@@ -321,7 +223,7 @@ main( int argc, char **argv )
     void
 readheaders( )
 {
-    ALIAS *cur;
+    struct alias *cur;
     char *p;
     int tome, state;
     char buf[MAXLINE];
@@ -636,7 +538,7 @@ check_from()
  *	exec sendmail to send the vacation file to sender
  */
     int
-sendmessage( char *myname, char **vmsg )
+sendmessage( char *myname, char *vmsg )
 {
     char	*nargv[5];
     int		i;
@@ -746,6 +648,7 @@ sendmessage( char *myname, char **vmsg )
     /* End of headers */
     printf( "\n" );
 
+    /* FIXME 
     if ( vmsg == NULL ) {
 	vmsg = fallback_vmsg;
     }
@@ -759,6 +662,7 @@ sendmessage( char *myname, char **vmsg )
 	}
 	putchar( '\n' );
     }
+    */
 
     return( 0 );
 }

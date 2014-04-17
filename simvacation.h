@@ -58,6 +58,11 @@
 #define SECSPERDAY      ((time_t) SECSPERHOUR * HOURSPERDAY)
 #define MONSPERYEAR     12
 
+struct alias {
+    struct alias *next;
+    char *name;
+};
+
 struct header {
     char    *text;
     size_t  size;
