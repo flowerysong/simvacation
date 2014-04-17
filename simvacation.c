@@ -39,6 +39,7 @@
 #include <time.h>
 #include <syslog.h>
 #include <ctype.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
