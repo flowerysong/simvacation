@@ -41,8 +41,8 @@
 #include <syslog.h>
 
 #include "simvacation.h"
-#include "backend_bdb.h"
-#include "backend_vdb.h"
+#include "vdb_berkeley.h"
+#include "vdb.h"
 
 void    bdb_err_log ( const DB_ENV *, const char *, const char * );
 char   *bdb_path( char *, char * );
