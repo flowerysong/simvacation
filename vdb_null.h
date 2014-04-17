@@ -23,4 +23,6 @@ struct vdb {
     int dummy;
 };
 
+#include "vdb.h"
+
 #endif /* BACKEND_NULL_H */

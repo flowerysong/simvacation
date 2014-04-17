@@ -36,6 +36,7 @@
 
 #include <sys/param.h>
 
+#include <dirent.h>
 #include <errno.h>
 #include <string.h>
 #include <syslog.h>
@@ -185,10 +186,71 @@ vdb_store_reply( struct vdb *vdb, char *from )
     return (rc);
 }
 
+    struct name_list *
+vdb_get_names( struct vdb *vdb ) {
+    char                *cur_path;
+    char                cur_char;
+    char                *vdbdir = VDBDIR;
+    char                buf[ MAXPATHLEN ];
+    DIR                 *dirp;
+    struct dirent       *cur_entry;
+    int                 len;
+    struct name_list    *names;
+    struct name_list    *cur_name;
+
+    if ( access( vdbdir, F_OK )) {
+        syslog( LOG_ALERT, "vdb_get_names: cannot open %s", vdbdir );
+        return NULL;
+    }
+
+    names = malloc( sizeof( struct name_list ));
+    memset( names, 0, sizeof( struct name_list ));
+    cur_name = names;
+
+    for ( cur_char = 'a'; cur_char <= 'z'; cur_char++ ) {
+        sprintf( cur_path, "%s/%c", vdbdir, cur_char );
+        if (( dirp = opendir( cur_path )) == NULL ) {
+            syslog( LOG_ALERT, "vdb_get_names: cannot open %s", cur_path );
+            continue;
+        }
+
+        while (( cur_entry = readdir( dirp )) != NULL ) {
+            len = strlen( cur_entry->d_name );
+            if ( len < 5 ||
+                    strncmp( &cur_entry->d_name[ len - 4 ], ".ddb", 4 ) != 0 ) {
+                continue;
+            }
+
+            if ( cur_name->name ) {
+                cur_name->next = malloc( sizeof( struct name_list ));
+                cur_name = cur_name->next;
+                cur_name->next = NULL;
+            }
+            strncpy( buf, cur_entry->d_name, len - 4 );
+            buf[ len - 4 ] = '\0';
+            cur_name->name = strdup( buf );
+        }
+    }
+    
+    if ( cur_name->name ) {
+        return names;
+    }
+
+    return NULL;
+}
+
+    void
+vdb_clean( struct vdb *vdb, char *user ) {
+    char *fname = bdb_path( VDBDIR, user );
+    if ( unlink( fname ) < 0 ) {
+        syslog( LOG_ALERT, "vdb_clean: cannot remove %s: %m", fname );
+    }
+}
+
     char *
 bdb_path( char *dir, char *user )
 {
-    char	buf[MAXPATHLEN];
+    char	buf[ MAXPATHLEN ];
 
     if (( user == NULL ) || ( dir == NULL )) {
 	return( NULL );

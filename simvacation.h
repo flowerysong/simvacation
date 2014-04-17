@@ -36,14 +36,8 @@
 #define _PATH_SENDMAIL  "/usr/sbin/sendmail"
 #endif
 
-#define LDAP_HOST       "ldap.itd.umich.edu"
-#define BIND_DN         NULL
-#define BIND_METHOD     NULL
-#define SEARCHBASE      "ou=People,dc=umich,dc=edu"
-#define ATTR_ONVAC      "onVacation"
-#define ATTR_VACMSG     "vacationMessage"
-#define ATTR_CN         "cn"
 #define DOMAIN          "umich.edu"
+
 /* FIXME: Add Auto: to Subject? */
 #define SUBJECTPREFIX     "Out of email contact"
 
@@ -58,8 +52,8 @@
 #define SECSPERDAY      ((time_t) SECSPERHOUR * HOURSPERDAY)
 #define MONSPERYEAR     12
 
-struct alias {
-    struct alias *next;
+struct name_list {
+    struct name_list *next;
     char *name;
 };
 

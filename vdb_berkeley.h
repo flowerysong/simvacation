@@ -27,4 +27,6 @@ struct vdb {
     char *path;
 };
 
+#include "vdb.h"
+
 #endif /* BACKEND_BDB_H */

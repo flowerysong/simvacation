@@ -44,15 +44,9 @@
 #include <string.h>
 #include <strings.h>
 
-#define LDAP_DEPRECATED		1
-
-#include <lber.h>
-#include <ldap.h>
-
 #include "argcargv.h"
 #include "simvacation.h"
 #include "vlu_ldap.h"
-#include "vlu.h"
 
     struct vlu  *
 vlu_init( char *config ) {
@@ -72,6 +66,9 @@ vlu_init( char *config ) {
     }
     memset( vlu, 0, sizeof( struct vlu ));
 
+    vlu->attr_vacation = ATTR_ONVAC;
+    vlu->attr_vacation_msg = ATTR_VACMSG;
+    vlu->attr_cn = ATTR_CN;
     vlu->ldap_timeout.tv_sec = 30;
 
     if (( fp = fopen( config, "r" )) == NULL ) {
@@ -123,7 +120,7 @@ vlu_init( char *config ) {
                 syslog( LOG_ERR, "vlu_init: usage: vacationattr <attribute>" );
                 goto error;
             }
-            if ((vlu->vacationattr = strdup( av[ 1 ] )) == NULL ) {
+            if ((vlu->attr_vacation = strdup( av[ 1 ] )) == NULL ) {
                 syslog( LOG_ERR, "vlu_init: strdup: %m" );
                 goto error;
             }
@@ -174,9 +171,12 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
     LDAPMessage *result;
     char **vacstatus;
     char *searchbase = SEARCHBASE;
-    static char *attrs[] = { ATTR_VACMSG, ATTR_CN, NULL, NULL };
-
-    attrs[ 2 ] = vlu->vacationattr;
+    static char *attrs[4];
+    
+    attrs[ 0 ] = vlu->attr_cn;
+    attrs[ 1 ] = vlu->attr_vacation;
+    attrs[ 2 ] = vlu->attr_vacation_msg;
+    attrs[ 3 ] = NULL;
 
     sprintf( filter, "uid=%s", rcpt );
     rc = ldap_search_st( vlu->ld, searchbase, LDAP_SCOPE_SUBTREE,
@@ -214,7 +214,7 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
     
     vlu->result = ldap_first_entry( vlu->ld, result );
 
-    vacstatus = ldap_get_values( vlu->ld, vlu->result, vlu->vacationattr );
+    vacstatus = ldap_get_values( vlu->ld, vlu->result, vlu->attr_vacation );
 
     if ( vacstatus && ( strcasecmp( *vacstatus, "TRUE" ) == 0 )) {
         syslog( LOG_DEBUG, "vlu_search: user %s on vacation", rcpt );
@@ -228,17 +228,17 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
     return( VLU_RESULT_OK );
 }
 
-    struct alias *
+    struct name_list *
 vlu_aliases( struct vlu *vlu, char *rcpt ) {
     char **cnames;
     int i;
-    struct alias *result;
-    struct alias *cur;
+    struct name_list *result;
+    struct name_list *cur;
 
     cnames = ldap_get_values( vlu->ld, vlu->result, ATTR_CN );
 
-    if (( cur = malloc( sizeof( struct alias ))) == NULL ) {
-	syslog( LOG_ALERT, "vlu_aliases: malloc for alias failed");
+    if (( cur = malloc( sizeof( struct name_list ))) == NULL ) {
+	syslog( LOG_ALERT, "vlu_aliases: malloc for name_list failed");
         return NULL;
     }
 
@@ -247,8 +247,8 @@ vlu_aliases( struct vlu *vlu, char *rcpt ) {
     result = cur;
 
     for ( i = 0; cnames && cnames[i] != NULL; i++ ) {
-	if (( cur->next = malloc( sizeof( struct alias ))) == NULL ) {
-	    syslog( LOG_ALERT, "vlu_aliases: malloc for alias failed");
+	if (( cur->next = malloc( sizeof( struct name_list ))) == NULL ) {
+	    syslog( LOG_ALERT, "vlu_aliases: malloc for name_list failed");
             return NULL;
 	}
 	cur = cur->next;

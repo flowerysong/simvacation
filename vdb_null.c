@@ -36,8 +36,7 @@
 #include <time.h>
 
 #include "simvacation.h"
-#include "backend_null.h"
-#include "backend_vdb.h"
+#include "vdb_null.h"
 
     int
 vdb_init( struct vdb *vdb, char *rcpt )

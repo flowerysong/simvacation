@@ -27,77 +27,36 @@
 #include <string.h>
 #include <unistd.h>
 
-#define LDAP_DEPRECATED         1
-
-#include <lber.h>
-#include <ldap.h>
-
 #include "simvacation.h"
-
-typedef struct uniq_list {
-    char *un_name;
-    struct uniq_list *un_next;
-} uniq_list;
+#include "vdb_berkeley.h"
+#include "vlu_ldap.h"
 
 void usage();
 
-
 int main( int argc, char **argv)
 {
+    int debug = 0;
     extern int optind, opterr;
     extern char *optarg;
-
     char ch;
 
-    LDAP *ld;
-    char *ldap_host = LDAP_HOST;
-    char *searchbase = SEARCHBASE;
-    int ldap_port = LDAP_PORT;
+    struct vlu *vlu;
+    struct vdb *vdb;
+    char *vlu_config;
 
-    int rc;
-    int err = 0;
-    static struct timeval timeout;
-    static char *attrs[] = { ATTR_ONVAC, NULL };
-    char filter[64];
-    LDAPMessage *result, *e;
-    char **vac;
+    struct name_list *uniqnames;
+    struct name_list *u;
 
-    char *vdbpath = VDBDIR;
-    char vdbdir[MAXPATHLEN];
-    char buf[MAXPATHLEN];
-    int matches;
-    DIR *dirp;
-    struct dirent *dire;
-    struct uniq_list *u, *uniqnames = NULL;
-    struct uniq_list **unp = &uniqnames;
-    char *perr;
-
-    openlog( "simunvacation", LOG_PID, LOG_VACATION );
-    /*
-     * Timeout values for LDAP searches
-     */
-    timeout.tv_sec = 30L;
-    timeout.tv_usec = 0L;
-
-    while (( ch = getopt( argc, argv, "s:h:p:v:" )) != EOF ) {
+    while (( ch = getopt( argc, argv, "c:d" )) != EOF ) {
 	switch( (char) ch ) {
-	case 's':		/* seachbase */
-	    searchbase = optarg;
+
+	case 'c':
+	    vlu_config = optarg;
 	    break;
 
-	case 'h':		/* ldap server */
-	    ldap_host = optarg;
-	    break;
-
-	case 'p':		/* ldap port */
-	    if ( isdigit( *optarg )) {
-		ldap_port = atoi( optarg );
-	    }
-	    break;
-
-	case 'v':		/* dir for vacation db files */
-	    vdbpath = optarg;
-	    break;
+        case 'd':
+            debug = 1;
+            break;
 
 	case '?':
 	default:
@@ -105,111 +64,46 @@ int main( int argc, char **argv)
 	}
     }
 
-    /*
-     * Connect to ldap server and bind
-     */
-    if (( ld = ldap_open( ldap_host, ldap_port )) == NULL ) {
-	syslog( LOG_ALERT, "cannot connect to host %s, port %d",
-		ldap_host, ldap_port );
-	exit( 1 );
+    if ( debug ) {
+        openlog( "simunvacation", LOG_NOWAIT | LOG_PERROR | LOG_PID, LOG_VACATION );
     }
-    if (( rc = ldap_simple_bind_s( ld, BIND_DN, BIND_METHOD ))
-	  != LDAP_SUCCESS ) {
-	ldap_get_option ( ld, LDAP_OPT_ERROR_STRING, &perr);
-	syslog( LOG_ALERT, "ldap_simple_bind failed: %s",perr);
-	free (perr);
-	exit( 1 );
+    else {
+        openlog( "simunvacation", LOG_PID, LOG_VACATION );
     }
 
+    vdb = malloc( sizeof( struct vdb ));
+    memset( vdb, 0, sizeof( struct vdb ));
+    vdb_init( vdb, "simunvacation" );
+    uniqnames = vdb_get_names( vdb );
 
-    if ( access( vdbpath, F_OK )) {
-	syslog( LOG_ALERT, "cannot open directory %s", vdbpath );
-	exit( 1 );
+    vlu = vlu_init( vlu_config );
+    if ( vlu_connect( vlu ) != 0 ) {
+        vdb_close( vdb );
+        exit( 1 );
     }
-
-    /*
-     * Build a linked list of candidate uniqnames.
-     */
-    for ( ch = 'a'; ch <= 'z'; ch++ ) {
-	sprintf( vdbdir, "%s/%c", vdbpath, ch );
-	if ((dirp = opendir( vdbdir )) == NULL) {
-	    syslog( LOG_ALERT, "cannot open directory %s", vdbdir );
-	    err++;
-	    continue;
-	}
-
-	while (( dire = readdir( dirp )) != NULL ) {
-	    int		len;
-
-	    /* is this a dbm file? */
-
-	    len = strlen( dire->d_name );
-	    if ( len > 4 ) {
-		if ( !strncmp( &dire->d_name[len - 4],
-			      ".ddb", 4 )) {
-		    strncpy( buf, dire->d_name, len - 4);
-		    buf[len - 4] = '\0';
-		    ( *unp ) = ( struct uniq_list *)
-			       malloc( sizeof ( struct uniq_list ));
-		    ( *unp )->un_name = strdup( buf );
-		    unp = &(( *unp )->un_next );
-		}
-	    }
-	}
-    }
-    ( *unp ) = NULL;
 
     /*
      * For each candidate uniqname, check to see if user is
      * still on vacation.  If not, remove the .dir and .pag files.
      */
-     for ( u = uniqnames; u; u = u->un_next ) {
-	sprintf( filter, "uid=%s", u->un_name );
-	rc = ldap_search_st( ld, searchbase, LDAP_SCOPE_SUBTREE,
-			     filter, attrs, 0, &timeout, &result );
-	if ( rc != LDAP_SUCCESS ) {
-	    ldap_get_option ( ld, LDAP_OPT_ERROR_STRING, &perr);
-	    syslog( LOG_ALERT, "error in ldap_search: %s",perr);
-	    free (perr);
-	    err++;
-	    continue;
-	}
-	matches = ldap_count_entries( ld, result );
-	if ( matches > 1 ) {
-	    syslog( LOG_ALERT, "ambiguous: %s", u->un_name );
-	    err++;
-	} else {
-	    if ( matches == 0 ) {
-		/* I don't consider this an error */
-		syslog( LOG_INFO, "%s not in UMOD", u->un_name );
-	    } else {
-		e = ldap_first_entry( ld, result );
-		vac = ldap_get_values( ld, e, ATTR_ONVAC );
-	    }
+     for ( u = uniqnames; u; u = u->next ) {
+        switch ( vlu_search( vlu, u->name )) {
+        case VLU_RESULT_PERMFAIL:
+            syslog( LOG_INFO, "cleaning up %s", u->name );
+            vdb_clean( vdb, u->name );
+            break;
+        case VLU_RESULT_TEMPFAIL:
+            syslog( LOG_ERR, "lookup error processing %s", u->name );
+            break;
+        default:
+            syslog( LOG_DEBUG, "leaving %s alone", u->name );
+            break;
+        }
+    }
 
-	    /*
-	     * If (1) user was not in LDAP Directory, or (2) no "onVacation"
-	     * attribute was retrieved, or (3) the user is not on
-	     * vacation, remove the dbm files.
-	     */
-	    if ( !matches || !vac || strcasecmp( *vac, "TRUE" )) {
-		syslog( LOG_INFO, "removing %s's db files", u->un_name );
-		sprintf( buf, "%s/%c/%s.ddb", vdbpath, u->un_name[0],
-			 u->un_name );
-		if ( unlink( buf ) < 0 ) {
-		    syslog( LOG_ALERT, "cannot remove file %s (%m)", buf );
-		    err++;
-		}
-	    } else {
-		syslog( LOG_DEBUG, "user %s still on vacation", u->un_name );
-	    }
-	}
-    }
-    if ( err ) {
-	exit( 1 );
-    } else {
-	exit( 0 );
-    }
+    vdb_close( vdb );
+    vlu_close( vlu );
+    exit( 0 );
 }
 
 void usage()

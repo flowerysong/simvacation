@@ -43,16 +43,9 @@
 #include <string.h>
 #include <strings.h>
 
-#define LDAP_DEPRECATED		1
-
-#include <lber.h>
-#include <ldap.h>
-
 #include "simvacation.h"
 #include "vdb_berkeley.h"
-#include "vdb.h"
 #include "vlu_ldap.h"
-#include "vlu.h"
 
 /*
  *  VACATION -- return a message to the sender when on vacation.
@@ -83,7 +76,7 @@ void    usage( char * );
 #define	MAXLINE	1000
 #define PRETTYLINE 80
 
-struct alias    *names;
+struct name_list  *names;
 struct headers  *h;
 static char    from[MAXLINE];
 
@@ -222,7 +215,7 @@ main( int argc, char **argv )
     void
 readheaders( )
 {
-    struct alias *cur;
+    struct name_list *cur;
     char *p;
     int tome, state;
     char buf[MAXLINE];
@@ -665,6 +658,7 @@ usage( char * progname)
 myexit( int retval )
 {
     vdb_close( vdb );
+    vlu_close( vlu );
 
     exit( retval );
 }

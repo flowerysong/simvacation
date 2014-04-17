@@ -7,7 +7,7 @@ bin_PROGRAMS = simvacation simunvacation simvacreport
 simvacation_SOURCES = argcargv.c vdb_berkeley.c vlu_ldap.c simvacation.c
 simvacation_LDADD = -lldap -llber @BDB_LIBS@
 
-simunvacation_SOURCES = simunvacation.c
+simunvacation_SOURCES = argcargv.c vdb_berkeley.c vlu_ldap.c simunvacation.c
 simunvacation_LDADD = -lldap -llber @BDB_LIBS@
 
 simvacreport_SOURCES = simvacreport.c
