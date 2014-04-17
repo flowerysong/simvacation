@@ -297,6 +297,17 @@ vlu_message( struct vlu *vlu, char *rcpt ) {
     return vacmsg;
 }
 
+    char *
+vlu_name( struct vlu *vlu, char *rcpt ) {
+    return ldap_get_dn( vlu->ld, vlu->result );
+}
+
+    char *
+vlu_display_name( struct vlu *vlu, char *rcpt ) {
+    char **xdn = ldap_explode_dn( ldap_get_dn( vlu->ld, vlu->result ), 1 );
+    return xdn[0];
+}
+
     void
 vlu_close ( struct vlu *vlu ) {
     

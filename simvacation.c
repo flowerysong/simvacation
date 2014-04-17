@@ -87,14 +87,9 @@ struct alias    *names;
 struct headers  *h;
 static char    from[MAXLINE];
 
+char            *rcpt;
 struct vdb      *vdb;
-
-static char	*dn;
-static char	**xdn;
-static char	*fallback_vmsg[] = {
-			"I am currently out of email contact.",
-			"Your mail will be read when I return.",
-			NULL };
+struct vlu      *vlu;
 
 extern int optind, opterr;
 extern char *optarg;
@@ -108,11 +103,9 @@ main( int argc, char **argv )
     debug = 0;
     time_t interval;
     int ch, rc;
-    char *rcpt;
     char *vacmsg;
     char *progname;
     char *vlu_config;
-    struct vlu *vlu;
 
     if ( (progname = strrchr( argv[0], '/' )) == NULL )
 	progname = strdup( argv[0] );
@@ -173,6 +166,7 @@ main( int argc, char **argv )
     if ( vlu_connect( vlu ) != 0 ) {
         myexit( EX_TEMPFAIL );
     }
+
     if ( rc = vlu_search( vlu, rcpt ) != VLU_RESULT_OK ) {
         switch ( rc ) {
         case VLU_RESULT_PERMFAIL:
@@ -203,6 +197,11 @@ main( int argc, char **argv )
 
     if ( !vdb_recent( vdb, from )) {
 	char rcptstr[MAXLINE];
+        if (( vacmsg = vlu_message( vlu, rcpt )) == NULL ) {
+            vacmsg = "I am currently out of email contact.\n"
+                    "Your mail will be read when I return.";
+        }
+
 	vdb_store_reply( vdb, from );
 	sprintf(rcptstr, "%s@%s", rcpt, DOMAIN);
 	sendmessage( rcptstr, vacmsg );
@@ -402,7 +401,7 @@ readheaders( )
     syslog( LOG_DEBUG, "readheaders: mail from %s", from );
 
     if ( !tome ) {
-	syslog( LOG_NOTICE, "readheaders: suppressing message: mail does not appear to be to user %s", dn );
+	syslog( LOG_NOTICE, "readheaders: suppressing message: mail does not appear to be to user %s", vlu_name( vlu, rcpt ));
 	myexit( EX_OK );
     }
 
@@ -575,7 +574,7 @@ sendmessage( char *myname, char *vmsg )
      *  address that was used to send the subject message to that
      *  recipient.
      */
-    printf( "From: %s <%s>\n", xdn[0], myname );
+    printf( "From: %s <%s>\n", vlu_display_name( vlu, rcpt ), myname );
 
     /* RFC 3834 3.1.3
      *  The To header field SHOULD indicate the recipient of the response.
@@ -648,21 +647,7 @@ sendmessage( char *myname, char *vmsg )
     /* End of headers */
     printf( "\n" );
 
-    /* FIXME 
-    if ( vmsg == NULL ) {
-	vmsg = fallback_vmsg;
-    }
-    for ( i = 0; vmsg[i] != NULL; i++ ) {
-	for ( p = vmsg[i]; *p; p++ ) {
-	    if ( *p == '$') {
-		putchar( '\n' );
-	    } else {
-		putchar( *p );
-	    }
-	}
-	putchar( '\n' );
-    }
-    */
+    printf( "%s\n", vmsg );
 
     return( 0 );
 }
