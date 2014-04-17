@@ -42,7 +42,7 @@ int main( int argc, char **argv)
 
     struct vlu *vlu;
     struct vdb *vdb;
-    char *vlu_config;
+    char *vlu_config = CONFFILE;
 
     struct name_list *uniqnames;
     struct name_list *u;

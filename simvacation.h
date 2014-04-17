@@ -26,10 +26,8 @@
 #define HEADER_UPDATE       2
 #define HEADER_NOREPLY      3
 
-#define VIT     "__VACATION__INTERVAL__TIMER__"
-
-#ifndef VDBDIR
-#define VDBDIR  "/var/vacationdb"   /* dir for vacation databases */
+#ifndef CONFFILE
+#define CONFFILE "/etc/mail/simvacation.conf"
 #endif
 
 #ifndef _PATH_SENDMAIL

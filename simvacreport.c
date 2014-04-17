@@ -24,14 +24,12 @@
 #include <string.h>
 #include <dirent.h>
 
-#define DB_DBM_HSEARCH    1
-#include <db.h>
-
 #include <sys/param.h>
 #include <fcntl.h>
 #include <errno.h>
 
 #include "simvacation.h"
+#include "vdb_berkeley.h"
 
     void
 usage( char *progname )
@@ -39,6 +37,8 @@ usage( char *progname )
     fprintf( stderr, "usage: %s [-v vacdb]\n", progname);
     exit( 1 );
 }
+
+/* FIXME: vdb abstraction */
 
     int
 main( int argc,  char **argv)

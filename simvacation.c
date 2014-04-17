@@ -98,7 +98,7 @@ main( int argc, char **argv )
     int ch, rc;
     char *vacmsg;
     char *progname;
-    char *vlu_config;
+    char *vlu_config = CONFFILE;
 
     if ( (progname = strrchr( argv[0], '/' )) == NULL )
 	progname = strdup( argv[0] );
