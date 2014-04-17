@@ -49,8 +49,8 @@
 #include <ldap.h>
 
 #include "simvacation.h"
-#include "backend_bdb.h"
-#include "backend_vdb.h"
+#include "vdb_berkeley.h"
+#include "vdb.h"
 
 /*
  *  VACATION -- return a message to the sender when on vacation.
