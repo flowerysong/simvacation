@@ -20,7 +20,7 @@
  */
 
 #include <config.h>
-#include "sds/sds.h"
+#include "yasl/src/yasl.h"
 
 #define HEADER_UNKNOWN      0
 #define HEADER_RECIPIENT    1
@@ -57,10 +57,10 @@ struct name_list {
 };
 
 struct headers {
-    sds    subject;
-    sds    messageid;
-    sds    references;
-    sds    inreplyto;
+    yastr   subject;
+    yastr   messageid;
+    yastr   references;
+    yastr   inreplyto;
 };
 
 #endif

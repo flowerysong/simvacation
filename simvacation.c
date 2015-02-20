@@ -62,7 +62,7 @@ void    myexit( int );
 int     nsearch( char *, char * );
 int     pexecv( char *path, char ** );
 void    readheaders();
-sds     append_header( sds, char *, int );
+yastr   append_header( yastr, char *, int );
 int     check_header( char *, const char * );
 int     sendmessage( char *, char * );
 void    usage( char * );
@@ -220,7 +220,7 @@ readheaders( )
     char *p;
     int tome, state, stripfield = 0;
     char buf[MAXLINE];
-    sds *current_hdr;
+    yastr *current_hdr;
 
     state = HEADER_UNKNOWN;
     tome = 0;
@@ -416,8 +416,8 @@ check_header( char *line, const char *field ) {
     return strncasecmp( field, line, strlen( field ));
 }
 
-    sds
-append_header( sds str, char *value, int stripfield )
+    yastr
+append_header( yastr str, char *value, int stripfield )
 {
     if ( stripfield ) {
         value = index( value, ':' );
@@ -425,11 +425,11 @@ append_header( sds str, char *value, int stripfield )
     }
 
     if ( str == NULL ) {
-        str = sdsempty();
+        str = yaslempty();
     }
 
-    sds s = sdscat( str, value );
-    sdstrim( s, "\n" );
+    yastr s = yaslcat( str, value );
+    yasltrim( s, "\n" );
     return s;
 }
 
@@ -580,7 +580,7 @@ sendmessage( char *myname, char *vmsg )
      *  followed by an ASCII SPACE character (0x20).
      */
     printf( "Subject: %s", SUBJECTPREFIX );
-    if ( sdslen( h->subject ) > 0 ) {
+    if ( yasllen( h->subject ) > 0 ) {
 	if ( check_header( h->subject, "Re:" ) != 0 ) {
 	    printf( " (Re: %s)", h->subject );
 	} else {
@@ -595,7 +595,7 @@ sendmessage( char *myname, char *vmsg )
      *  subject message, according to the rules in [RFC2822] section
      *  3.6.4.
      */
-    if ( sdslen( h->messageid ) > 0 ) {
+    if ( yasllen( h->messageid ) > 0 ) {
         /* RFC 2822 3.6.4
          *  The "In-Reply-To:" field will contain the contents of the
          *  "Message-ID:" field of the message to which this one is a reply
@@ -616,13 +616,13 @@ sendmessage( char *myname, char *vmsg )
      *  "In-Reply-To:" field followed by the contents of the parent's
      *  "Message-ID:" field (if any).
      */
-    if ( sdslen( h->references ) > 0 ) {
+    if ( yasllen( h->references ) > 0 ) {
         printf( "References: %s %s\n", h->references, h->messageid );
     }
-    else if ( sdslen( h->inreplyto ) > 0 ) {
+    else if ( yasllen( h->inreplyto ) > 0 ) {
         printf( "References: %s %s\n", h->inreplyto, h->messageid );
     }
-    else if ( sdslen( h->messageid ) > 0 ) {
+    else if ( yasllen( h->messageid ) > 0 ) {
         printf( "References: %s\n", h->messageid );
     }
 

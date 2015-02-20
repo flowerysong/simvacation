@@ -16,6 +16,7 @@ AC_DEFINE_UNQUOTED(LOG_VACATION, [$with_syslog], [syslog facility])
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_CC_C99
 
 # Checks for libraries.
 AX_PATH_BDB([4], [

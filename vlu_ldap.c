@@ -264,7 +264,7 @@ vlu_message( struct vlu *vlu, char *rcpt ) {
     char    **rawmsg;
     int     i;
     size_t  len;
-    sds     vacmsg;
+    yastr   vacmsg;
     char    *p;
 
     rawmsg = ldap_get_values( vlu->ld, vlu->result, ATTR_VACMSG );
@@ -273,10 +273,10 @@ vlu_message( struct vlu *vlu, char *rcpt ) {
         return NULL;
     }
     
-    vacmsg = sdsempty();
+    vacmsg = yaslempty();
 
     for ( i = 0; rawmsg[i] != NULL; i++ ) {
-        vacmsg = sdscat( vacmsg, rawmsg[i] );
+        vacmsg = yaslcat( vacmsg, rawmsg[i] );
     }
 
     for ( p = vacmsg; *p ; p++ ) {
