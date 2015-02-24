@@ -46,8 +46,8 @@
 #include <unistd.h>
 
 #include "simvacation.h"
-#include "vdb_berkeley.h"
-#include "vlu_ldap.h"
+#include "vdb.h"
+#include "vlu.h"
 
 /*
  *  VACATION -- return a message to the sender when on vacation.
@@ -175,10 +175,7 @@ main( int argc, char **argv )
         myexit( rc );
     }
 
-    vdb = malloc( sizeof( struct vdb ));
-    memset( vdb, 0, sizeof( struct vdb ));
-
-    if ( vdb_init( vdb, rcpt ) != 0 ) {
+    if (( vdb = vdb_init( rcpt )) == NULL ) {
         myexit( EX_OK );
     }
 

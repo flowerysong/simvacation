@@ -48,28 +48,33 @@
 void    bdb_err_log ( const DB_ENV *, const char *, const char * );
 char   *bdb_path( char *, char * );
 
-    int
-vdb_init( struct vdb *vdb, char *rcpt )
+    struct vdb *
+vdb_init( char *rcpt )
 {
-    int rc;
-    char *path;
+    int         rc;
+    char        *path;
+    struct vdb  *vdb;
+
+    if (( vdb = calloc( 1, sizeof( struct vdb ))) == NULL ) {
+        return( NULL );
+    }
 
     path = bdb_path( VDBDIR, rcpt );
 
-    if ((rc = db_create( &vdb->dbp, NULL, 0)) != 0) {
+    if (( rc = db_create( &vdb->dbp, NULL, 0 )) != 0) {
         syslog( LOG_ALERT,  "bdb: db_create: %s", db_strerror(rc));
-        return( 1 );
+        goto error;
     }   
-      
+
     vdb->dbp->set_errpfx( vdb->dbp, "DB creation");
     vdb->dbp->set_errcall( vdb->dbp, bdb_err_log);
     if ((rc = vdb->dbp->set_pagesize( vdb->dbp, 1024)) != 0) {
 	vdb->dbp->err(vdb->dbp, rc, "set_pagesize");
-        return( 1 );
+        goto error;
     } 
     if ((rc = vdb->dbp->set_cachesize( vdb->dbp, 0, 32 * 1024, 0)) != 0) {
 	vdb->dbp->err( vdb->dbp, rc, "set_cachesize");
-        return( 1 );
+        goto error;
     }
 	
     if ((rc = vdb->dbp->open(
@@ -82,18 +87,26 @@ vdb_init( struct vdb *vdb, char *rcpt )
 	    0664)) != 0) {
 	vdb->dbp->err(vdb->dbp, rc, "%s: open", path);
 	syslog( LOG_ALERT, "bdb: %s: %s\n", path, strerror( errno ));
-        return( 1 );
+        goto error;
     }
     vdb->dbp->set_errpfx( vdb->dbp, "");
 
-    return( 0 );
+    return( vdb );
+
+error:
+    free( vdb );
+    return( NULL );
 }
 
     void
 vdb_close( struct vdb *vdb )
 {   
-    if ( vdb && vdb->dbp )
-        (void)vdb->dbp->close( vdb->dbp, 0);
+    if ( vdb ) {
+        if ( vdb->dbp ) {
+            (void)vdb->dbp->close( vdb->dbp, 0);
+        }
+        free( vdb );
+    }
 }
 
     int
@@ -187,7 +200,8 @@ vdb_store_reply( struct vdb *vdb, char *from )
 }
 
     struct name_list *
-vdb_get_names( struct vdb *vdb ) {
+vdb_get_names( struct vdb *vdb )
+{
     char                *cur_path;
     char                cur_char;
     char                *vdbdir = VDBDIR;
@@ -240,11 +254,18 @@ vdb_get_names( struct vdb *vdb ) {
 }
 
     void
-vdb_clean( struct vdb *vdb, char *user ) {
+vdb_clean( struct vdb *vdb, char *user )
+{
     char *fname = bdb_path( VDBDIR, user );
     if ( unlink( fname ) < 0 ) {
         syslog( LOG_ALERT, "vdb_clean: cannot remove %s: %m", fname );
     }
+}
+
+    void
+vdb_gc( struct vdb *vdb )
+{
+    return;
 }
 
     char *

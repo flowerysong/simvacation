@@ -1,11 +1,10 @@
-#ifndef BACKEND_VDB_H
-#define BACKEND_VDB_H
+#ifndef BACKEND_LMDB_H
+#define BACKEND_LMDB_H
 
 /*
- * backend_vdb.h
+ * backend_lmdb.h
  *
- * Copyright (c) 2014 Regents of The University of Michigan.
- * All Rights Reserved.
+ * Copyright (c) 2015 Regents of The University of Michigan.
  *
  * Permission to use, copy, modify, and distribute this software and
  * its documentation for any purpose and without fee is hereby granted,
@@ -19,12 +18,18 @@
  *
  */
 
-struct vdb          *vdb_init( char * );
-void                vdb_close( struct vdb * );
-int                 vdb_recent( struct vdb *, char * );
-int                 vdb_store_interval( struct vdb *, time_t );
-int                 vdb_store_reply( struct vdb *, char * );
-struct name_list    *vdb_get_names( struct vdb * );
-void                vdb_clean( struct vdb *, char * );
-void                vdb_gc( struct vdb * );
-#endif /* BACKEND_VDB_H */
+#include <lmdb.h>
+
+#ifndef VDBDIR
+#define VDBDIR  "/var/lib/vacation"   /* dir for vacation database */
+#endif
+
+struct vdb {
+    MDB_env *dbenv;
+    char    *rcpt;
+    time_t  interval;
+};
+
+#include "vdb.h"
+
+#endif /* BACKEND_LMDB_H */

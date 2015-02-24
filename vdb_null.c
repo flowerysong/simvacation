@@ -33,21 +33,23 @@
  * SUCH DAMAGE.
  */
 
+#include <stdlib.h>
 #include <time.h>
 
 #include "simvacation.h"
 #include "vdb_null.h"
 
-    int
-vdb_init( struct vdb *vdb, char *rcpt )
+    struct vdb *
+vdb_init( char *rcpt )
 {
-    return( 0 );
+    return( calloc( 1, 1 ));
 }
 
     void
 vdb_close( struct vdb *vdb )
-{   
-
+{
+    free( vdb );
+    return;
 }
 
     int
@@ -72,4 +74,16 @@ vdb_store_reply( struct vdb *vdb, char *from )
 vdb_get_names( struct vdb *vdb )
 {
     return( NULL );
+}
+
+    void
+vdb_clean( struct vdb *vdb, char *user )
+{
+    return;
+}
+
+    void
+vdb_gc( struct vdb *vdb )
+{
+    return;
 }

@@ -28,10 +28,10 @@
 #include <unistd.h>
 
 #include "simvacation.h"
-#include "vdb_berkeley.h"
-#include "vlu_ldap.h"
+#include "vdb.h"
+#include "vlu.h"
 
-void usage();
+void usage( void );
 
 int main( int argc, char **argv)
 {
@@ -71,9 +71,7 @@ int main( int argc, char **argv)
         openlog( "simunvacation", LOG_PID, LOG_VACATION );
     }
 
-    vdb = malloc( sizeof( struct vdb ));
-    memset( vdb, 0, sizeof( struct vdb ));
-    vdb_init( vdb, "simunvacation" );
+    vdb = vdb_init( "simunvacation" );
     uniqnames = vdb_get_names( vdb );
 
     vlu = vlu_init( vlu_config );
@@ -84,7 +82,7 @@ int main( int argc, char **argv)
 
     /*
      * For each candidate uniqname, check to see if user is
-     * still on vacation.  If not, remove the .dir and .pag files.
+     * still on vacation.  If not, tell the database to clean them up.
      */
      for ( u = uniqnames; u; u = u->next ) {
         switch ( vlu_search( vlu, u->name )) {
@@ -101,12 +99,15 @@ int main( int argc, char **argv)
         }
     }
 
+    /* Vacuum the database. */
+    vdb_gc( vdb );
+
     vdb_close( vdb );
     vlu_close( vlu );
     exit( 0 );
 }
 
-void usage()
+void usage( void )
 {
     fprintf( stderr, "usage: simunvacation [-v vbdir] [-s searchbase]\n" );
     fprintf( stderr, "                [-h ldap_host] [-p ldap_port]\n" );
