@@ -162,7 +162,7 @@ main( int argc, char **argv )
         myexit( EX_TEMPFAIL );
     }
 
-    if ( rc = vlu_search( vlu, rcpt ) != VLU_RESULT_OK ) {
+    if (( rc = vlu_search( vlu, rcpt )) != VLU_RESULT_OK ) {
         switch ( rc ) {
         case VLU_RESULT_PERMFAIL:
             /* We're done processing this message. */
@@ -218,7 +218,7 @@ readheaders( )
     char *p;
     int tome, state, stripfield = 0;
     char buf[MAXLINE];
-    yastr *current_hdr;
+    yastr *current_hdr = NULL;
 
     state = HEADER_UNKNOWN;
     tome = 0;
@@ -526,8 +526,6 @@ check_from()
 sendmessage( char *myname, char *vmsg )
 {
     char	*nargv[5];
-    int		i;
-    char	*p;
 
 #ifdef HAVE_SENDMAIL
     nargv[0] = "sendmail";

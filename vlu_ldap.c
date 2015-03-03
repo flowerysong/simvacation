@@ -52,9 +52,8 @@
 vlu_init( char *config ) {
     struct vlu *vlu;
     struct vlu *ret = NULL;
-    struct timeval timeout;
     FILE *fp;
-    ACAV *acav;
+    ACAV *acav = NULL;
     char **av;
     int ac;
     char *line = NULL;
@@ -263,7 +262,6 @@ vlu_aliases( struct vlu *vlu, char *rcpt ) {
 vlu_message( struct vlu *vlu, char *rcpt ) {
     char    **rawmsg;
     int     i;
-    size_t  len;
     yastr   vacmsg;
     char    *p;
 
