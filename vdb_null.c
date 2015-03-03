@@ -67,3 +67,9 @@ vdb_store_reply( struct vdb *vdb, char *from )
 {
     return( 0 );
 }
+
+    struct name_list *
+vdb_get_names( struct vdb *vdb )
+{
+    return( NULL );
+}
