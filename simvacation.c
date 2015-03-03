@@ -43,6 +43,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <unistd.h>
 
 #include "simvacation.h"
 #include "vdb_berkeley.h"
