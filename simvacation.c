@@ -280,7 +280,7 @@ readheaders( )
             myexit( EX_OK );
         }
         else if ( check_header( buf, "Precedence" ) == 0 ) {
-            /* RFC 3834 2 
+            /* RFC 3834 2
              *  For instance, if the subject message contained a
              *  Precedence header field [RFC2076] with a value of
              *  "list" the responder might guess that the traffic had
@@ -344,7 +344,7 @@ readheaders( )
                 myexit( EX_OK );
             }
         }
-        /* RFC 3834 2 
+        /* RFC 3834 2
          *  Personal and Group responses whose purpose is to notify the sender
          *  of a message of a temporary absence of the recipient (e.g.,
          *  "vacation" and "out of the office" notices) SHOULD NOT be issued
@@ -489,6 +489,42 @@ check_from()
     struct ignore *cur;
     int len;
     char *p;
+    char *at;
+    char *sep;
+    char buf[ MAXLINE ];
+
+    /* Canonicalize SRS addresses. We don't need to verify hashes and timestamps
+     * because this doesn't increase our risk of replying to a forged address.
+     */
+    if (( strncasecmp( from, "SRS", 3 ) == 0 ) && ( strlen( from ) > 13 ) &&
+        (( from[ 3 ] == '0' ) || ( from[ 3 ] == '1' )) &&
+        (( from[ 4 ] == '=' ) || ( from[ 4 ] == '-' ) ||
+        ( from[ 4 ] == '+' ))) {
+        if ( from[ 3 ] == '1' ) {
+            p = strstr( from, "==" ) + 2;
+        } else {
+            p = from + 5;
+        }
+
+        /* Skip the hash and timestamp */
+        if (( p != NULL ) &&
+                (( p = strchr( p, '=' )) != NULL ) &&
+                (( p = strchr( p + 1, '=' )) != NULL )) {
+            p++;
+        }
+
+        /* p is now domain.tld=localpart@forwarder.tld or NULL
+         * or the address is borked */
+        if (( p != NULL ) && (( sep = strchr( p, '=' )) != NULL )) {
+            if (( at = strrchr( sep, '@' )) != NULL ) {
+                *at = '\0';
+            }
+            *sep = '\0';
+            sprintf( buf, "%s@%s", sep + 1, p );
+            syslog( LOG_NOTICE, "check_from: corrected for SRS: %s", buf );
+            strncpy( from, buf, MAXLINE - 1 );
+        }
+    }
 
     if (( p = strrchr( from, '@' )) == NULL ) {
         for ( p = from ; *p; ++p );
@@ -496,7 +532,7 @@ check_from()
 
     len = p - from;
     for ( cur = ignore; cur->name; ++cur ) {
-	if ( len >= cur->len && 
+	if ( len >= cur->len &&
 		strncasecmp( cur->name, p - cur->len, cur->len == 0 )) {
 	    return( 1 );
         }
@@ -525,7 +561,7 @@ sendmessage( char *myname, char *vmsg )
     nargv[2] = "";
     nargv[3] = from;
     nargv[4] = NULL;
-#endif    
+#endif
 
     if (( pexecv( _PATH_SENDMAIL, nargv )) == -1 ) {
 	syslog( LOG_ERR, "mail: pexecv of %s failed", _PATH_SENDMAIL );
