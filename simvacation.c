@@ -490,21 +490,8 @@ check_from()
     int len;
     char *p;
 
-    /* FIXME
-     * This is mildly amusing, and I'm not positive it's right; trying
-     * to find the "real" name of the sender, assuming that addresses
-     * will be some variant of:
-     *
-     * From site!site!SENDER%site.domain%site.domain@site.domain
-     */
-    if ( !( p = index( from, '%' ))) {
-	if ( !( p = index( from, '@' ))) {
-	    if (( p = rindex( from, '!' )))
-		++p;
-	    else
-		p = from;
-	    for ( ; *p; ++p );
-	}
+    if (( p = strrchr( from, '@' )) == NULL ) {
+        for ( p = from ; *p; ++p );
     }
 
     len = p - from;
