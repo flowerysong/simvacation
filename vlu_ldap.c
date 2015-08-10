@@ -120,13 +120,13 @@ vlu_init( char *config ) {
     free( line );
 
     if ( acav ) {
-        acav_free( acav );  
+        acav_free( acav );
     }
 
     if ( ret == NULL ) {
         free( vlu );
     }
-    
+
     return ret;
 }
 
@@ -158,7 +158,7 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
     char **vacstatus;
     char *searchbase = SEARCHBASE;
     static char *attrs[4];
-    
+
     attrs[ 0 ] = vlu->attr_cn;
     attrs[ 1 ] = vlu->attr_vacation;
     attrs[ 2 ] = vlu->attr_vacation_msg;
@@ -186,7 +186,7 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
         syslog( LOG_ALERT, "vlu_search: ldap_search failed: %s",
                 ldap_err2string( rc ));
         return( retval );
-    }		
+    } 
 
     matches = ldap_count_entries( vlu->ld, result );
 
@@ -197,7 +197,7 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
 	syslog( LOG_ALERT, "vlu_search: no match for %s", rcpt );
 	return( VLU_RESULT_PERMFAIL );
     }
-    
+
     vlu->result = ldap_first_entry( vlu->ld, result );
 
     vacstatus = ldap_get_values( vlu->ld, vlu->result, vlu->attr_vacation );
@@ -257,7 +257,7 @@ vlu_message( struct vlu *vlu, char *rcpt ) {
     if ( rawmsg == NULL ) {
         return NULL;
     }
-    
+
     vacmsg = yaslempty();
 
     for ( i = 0; rawmsg[i] != NULL; i++ ) {
@@ -286,5 +286,5 @@ vlu_display_name( struct vlu *vlu, char *rcpt ) {
 
     void
 vlu_close ( struct vlu *vlu ) {
-    
+
 }

@@ -89,5 +89,5 @@ vlu_display_name( struct vlu *vlu, char *rcpt ) {
 
     void
 vlu_close ( struct vlu *vlu ) {
-    
+
 }

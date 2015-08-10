@@ -280,7 +280,7 @@ lmdb_vdb_key( char *rcpt, char *from )
 {
     /* MDB_MAXKEYSIZE. 511 is the (old?) default and should be safe. */
     char            key[ 511 ];
-    
+
     snprintf( key, 511, "user:%s:%llx", rcpt,
             rabin_fingerprint( from, strlen( from )));
     syslog( LOG_DEBUG, "lmdb_vdb_key: %s", key );

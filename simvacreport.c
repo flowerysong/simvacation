@@ -33,7 +33,7 @@
 
     void
 usage( char *progname )
-{                         
+{
     fprintf( stderr, "usage: %s [-v vacdb]\n", progname);
     exit( 1 );
 }
@@ -75,11 +75,10 @@ main( int argc,  char **argv)
         case 'v':               /* dir for vacation db files */
             vdbpath = optarg;
             break;
-            
         case '?':
         default:
             usage( progname );
-        }   
+        }
     }
 
 
@@ -105,12 +104,12 @@ main( int argc,  char **argv)
 
 		    /* Create the database handle */
 		    if ((rc = db_create( &dbp, NULL, 0)) != 0) {
-			fprintf ( stderr, 
+			fprintf ( stderr,
 			    "Failed creating database handle: db_create: %s\n",
         		    db_strerror(rc));
         		continue;  /* XXX Or do we want to quit */
 		    }
-		    if ((rc = dbp->open(dbp,  NULL, vdbfile, 
+		    if ((rc = dbp->open(dbp,  NULL, vdbfile,
 				NULL, DB_UNKNOWN, DB_RDONLY, 0664)) != 0) {
 
 			fprintf (stderr, "Failed opening database: %s Error:%s\n",

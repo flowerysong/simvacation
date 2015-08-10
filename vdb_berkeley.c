@@ -60,19 +60,19 @@ vdb_init( char *rcpt )
     if (( rc = db_create( &vdb->dbp, NULL, 0 )) != 0) {
         syslog( LOG_ALERT,  "bdb: db_create: %s", db_strerror(rc));
         goto error;
-    }   
+    }
 
     vdb->dbp->set_errpfx( vdb->dbp, "DB creation");
     vdb->dbp->set_errcall( vdb->dbp, bdb_err_log);
     if ((rc = vdb->dbp->set_pagesize( vdb->dbp, 1024)) != 0) {
 	vdb->dbp->err(vdb->dbp, rc, "set_pagesize");
         goto error;
-    } 
+    }
     if ((rc = vdb->dbp->set_cachesize( vdb->dbp, 0, 32 * 1024, 0)) != 0) {
 	vdb->dbp->err( vdb->dbp, rc, "set_cachesize");
         goto error;
     }
-	
+
     if ((rc = vdb->dbp->open(
             vdb->dbp,       /* DB handle */
 	    NULL,           /* transaction handle */
@@ -96,7 +96,7 @@ error:
 
     void
 vdb_close( struct vdb *vdb )
-{   
+{
     if ( vdb ) {
         if ( vdb->dbp ) {
             (void)vdb->dbp->close( vdb->dbp, 0);
@@ -164,7 +164,7 @@ vdb_store_interval( struct vdb *vdb, time_t interval )
     data.size = sizeof( interval );
     rc = vdb->dbp->put(vdb->dbp, NULL, &key, &data, (u_int32_t) 0); /* allow overwrites */
     if (rc != 0) {
-	syslog( LOG_ALERT, "bdb: error while putting interval: %d, %s", 
+	syslog( LOG_ALERT, "bdb: error while putting interval: %d, %s",
 		rc, db_strerror(rc) );
     }
     return (rc);
@@ -188,7 +188,7 @@ vdb_store_reply( struct vdb *vdb, char *from )
     data.size = sizeof( now );
     rc = vdb->dbp->put(vdb->dbp, NULL, &key, &data, 0);  /* allow overwrites */
     if (rc != 0) {
-	syslog( LOG_ALERT, "bdb: error while putting reply time: %d, %s", 
+	syslog( LOG_ALERT, "bdb: error while putting reply time: %d, %s",
 		rc, db_strerror(rc) );
     }
 
@@ -241,7 +241,7 @@ vdb_get_names( struct vdb *vdb )
             cur_name->name = strdup( buf );
         }
     }
-    
+
     if ( cur_name->name ) {
         return names;
     }
@@ -281,7 +281,7 @@ bdb_path( char *dir, char *user )
     return( strdup( buf ));
 }
 
-    void 
+    void
 bdb_err_log ( const DB_ENV * dbenv, const char *errpfx, const char *msg )
 {
     syslog( LOG_ALERT, "bdb: %s: %s", errpfx, msg);
