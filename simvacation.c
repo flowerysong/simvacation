@@ -153,7 +153,10 @@ main( int argc, char **argv )
 
     rcpt = *argv;
 
-    vlu = vlu_init( vlu_config );
+    if (( vlu = vlu_init( vlu_config )) == NULL ) {
+        myexit( EX_TEMPFAIL );
+    }
+
     if ( vlu_connect( vlu ) != 0 ) {
         myexit( EX_TEMPFAIL );
     }
