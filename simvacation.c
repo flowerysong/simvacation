@@ -127,11 +127,12 @@ main( int argc, char **argv )
 	case 'r':
 	    if ( isdigit( *optarg )) {
 		interval = atol( optarg ) * SECSPERDAY;
-		if ( interval < 0 )
+		if ( interval < 0 ) {
 		    usage( progname );
-	    }
-	    else
-		interval = LONG_MAX;
+                }
+	    } else {
+                usage( progname );
+            }
 	    break;
 
 	    case '?':
