@@ -2,7 +2,7 @@
 #define SIMVACATION_H
 
 #include <config.h>
-#include "yasl/src/yasl.h"
+#include "yasl.h"
 
 #define HEADER_UNKNOWN      0
 #define HEADER_RECIPIENT    1

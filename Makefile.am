@@ -1,13 +1,13 @@
 ACLOCAL_AMFLAGS = -I m4
-AM_LDFLAGS = @LDFLAGS@ @LDAP_LDFLAGS@ @BDB_LDFLAGS@ 
+AM_LDFLAGS = @LDFLAGS@ @LDAP_LDFLAGS@ @BDB_LDFLAGS@
 AM_CPPFLAGS = @CPPFLAGS@ @LDAP_CPPFLAGS@ @BDB_CPPFLAGS@
 
 bin_PROGRAMS = simvacation simunvacation
 
-simvacation_SOURCES = yasl/src/yasl.c yasl/src/yasl.h argcargv.c argcargv.h simvacation.h simvacation.c
+simvacation_SOURCES = yasl.c yasl.h argcargv.c argcargv.h simvacation.h simvacation.c
 simvacation_LDADD =
 
-simunvacation_SOURCES = yasl/src/yasl.c yasl/src/yasl.h argcargv.c argcargv.h simvacation.h simunvacation.c
+simunvacation_SOURCES = yasl.c yasl.h argcargv.c argcargv.h simvacation.h simunvacation.c
 simunvacation_LDADD =
 
 if BACKEND_NULL
@@ -41,4 +41,4 @@ endif
 
 dist_man_MANS = simvacation.8 simunvacation.8 simvacreport.8
 
-EXTRA_DIST = yasl/LICENSE yasl/README.rst
+EXTRA_DIST = COPYING.yasl
