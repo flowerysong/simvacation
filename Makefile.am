@@ -32,13 +32,8 @@ simvacation_SOURCES += vdb_berkeley.c vdb_berkeley.h
 simvacation_LDADD += @BDB_LIBS@
 simunvacation_SOURCES += vdb_berkeley.c vdb_berkeley.h
 simunvacation_LDADD += @BDB_LIBS@
-## simvacreport doesn't use the abstraction layer and isn't used by us
-## so I might chuck it.
-simvacreport_SOURCES = simvacreport.c
-simvacreport_LDADD = @BDB_LIBS@
-bin_PROGRAMS += simvacreport
 endif
 
-dist_man_MANS = simvacation.8 simunvacation.8 simvacreport.8
+dist_man_MANS = simvacation.8 simunvacation.8
 
 EXTRA_DIST = COPYING.yasl
