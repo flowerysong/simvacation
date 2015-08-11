@@ -7,7 +7,7 @@
 #define VIT     "__VACATION__INTERVAL__TIMER__"
 
 #ifndef VDBDIR
-#define VDBDIR  "/var/vacationdb"   /* dir for vacation databases */
+#define VDBDIR  "/var/lib/simvacation"   /* dir for vacation databases */
 #endif
 
 struct vdb {

@@ -8,7 +8,7 @@ AC_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
 # Set up variables
-AC_ARG_WITH(vacationdb, AC_HELP_STRING([--with-vacationdb=DB], [default: /var/vacationdb]), [], with_vacationdb="/var/vacationdb")
+AC_ARG_WITH(vacationdb, AC_HELP_STRING([--with-vacationdb=DB], [default: /var/lib/simvacation]), [], with_vacationdb="/var/lib/simvacation")
 AC_DEFINE_UNQUOTED(VDBDIR, ["$with_vacationdb"], [vacation db location])
 
 AC_ARG_WITH(syslog, AC_HELP_STRING([--with-syslog=FACILITY], [default: LOG_MAIL]), [], with_syslog="LOG_MAIL")

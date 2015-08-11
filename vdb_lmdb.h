@@ -4,7 +4,7 @@
 #include <lmdb.h>
 
 #ifndef VDBDIR
-#define VDBDIR  "/var/lib/vacation"   /* dir for vacation database */
+#define VDBDIR  "/var/lib/simvacation"   /* dir for vacation database */
 #endif
 
 struct vdb {
