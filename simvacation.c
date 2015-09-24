@@ -548,6 +548,7 @@ check_from()
     int
 sendmessage( char *myname, char *vmsg )
 {
+    char        hostname[ 255 ];
     char	*nargv[5];
 
 #ifdef HAVE_SENDMAIL
@@ -571,6 +572,10 @@ sendmessage( char *myname, char *vmsg )
      * Our stdout should now be hooked up to sendmail's stdin.
      * Generate headers and print the vacation message.
      */
+
+    gethostname( hostname, 255 );
+    printf( "Message-ID: <%llx_%x@%s>\n", (unsigned long long)time( NULL ),
+            getpid( ), hostname );
 
     /* RFC 3834 3.1.1
      *  For responses sent by Personal Responders, the From field SHOULD
@@ -626,7 +631,7 @@ sendmessage( char *myname, char *vmsg )
     }
 
     /* RFC 2822 3.6.4
-     *  The "References:" field will contain the contents of the 
+     *  The "References:" field will contain the contents of the
      *  parent's "References:" field (if any) followed by the contents
      *  of the parent's "Message-ID:" field (if any). If the parent
      *  message does not contain a "References:" field but does have an
