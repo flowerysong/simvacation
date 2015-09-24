@@ -651,6 +651,9 @@ sendmessage( char *myname, char *vmsg )
      */
     printf( "Auto-Submitted: auto-replied\n" );
 
+    printf( "MIME-Version: 1.0\n" );
+    printf( "Content-Type: text/plain; charset=UTF-8\n" );
+
     /* End of headers */
     printf( "\n" );
 
