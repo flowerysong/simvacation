@@ -34,6 +34,13 @@ simunvacation_SOURCES += vdb_berkeley.c vdb_berkeley.h
 simunvacation_LDADD += @BDB_LIBS@
 endif
 
+if BACKEND_REDIS
+simvacation_SOURCES += rabin.c rabin.h vdb_redis.c vdb_redis.h
+simvacation_LDADD += $(URCL_LIBS)
+simunvacation_SOURCES += rabin.c rabin.h vdb_redis.c vdb_redis.h
+simunvacation_LDADD += $(URCL_LIBS)
+endif
+
 dist_man_MANS = simvacation.8 simunvacation.8
 
 EXTRA_DIST = COPYING.yasl
