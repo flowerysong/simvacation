@@ -488,6 +488,7 @@ check_from()
     };
     struct ignore *cur;
     int len;
+    char *a;
     char *p;
     char *at;
     char *sep;
@@ -496,14 +497,18 @@ check_from()
     /* Canonicalize SRS addresses. We don't need to verify hashes and timestamps
      * because this doesn't increase our risk of replying to a forged address.
      */
-    if (( strncasecmp( from, "SRS", 3 ) == 0 ) && ( strlen( from ) > 13 ) &&
-        (( from[ 3 ] == '0' ) || ( from[ 3 ] == '1' )) &&
-        (( from[ 4 ] == '=' ) || ( from[ 4 ] == '-' ) ||
-        ( from[ 4 ] == '+' ))) {
-        if ( from[ 3 ] == '1' ) {
-            p = strstr( from, "==" ) + 2;
+    a = from;
+    if ( *a == '"' ) {
+        a++;
+    }
+    if (( strncasecmp( a, "SRS", 3 ) == 0 ) && ( strlen( a ) > 13 ) &&
+        (( a[ 3 ] == '0' ) || ( a[ 3 ] == '1' )) &&
+        (( a[ 4 ] == '=' ) || ( a[ 4 ] == '-' ) ||
+        ( a[ 4 ] == '+' ))) {
+        if ( a[ 3 ] == '1' ) {
+            p = strstr( a, "==" ) + 2;
         } else {
-            p = from + 5;
+            p = a + 5;
         }
 
         /* Skip the hash and timestamp */
@@ -520,7 +525,11 @@ check_from()
                 *at = '\0';
             }
             *sep = '\0';
-            sprintf( buf, "%s@%s", sep + 1, p );
+            if ( *from == '"' ) {
+                sprintf( buf, "\"%s@%s", sep + 1, p );
+            } else {
+                sprintf( buf, "%s@%s", sep + 1, p );
+            }
             syslog( LOG_NOTICE, "check_from: corrected for SRS: %s", buf );
             strncpy( from, buf, MAXLINE - 1 );
         }
