@@ -487,69 +487,96 @@ check_from()
 		{ NULL, 0 },
     };
     struct ignore *cur;
-    int len;
-    char *a;
+    size_t len;
+    yastr a;
+    yastr buf;
     char *p;
     char *at;
     char *sep;
-    char buf[ MAXLINE ];
+
+    a = yaslauto( from );
 
     /* Canonicalize SRS addresses. We don't need to verify hashes and timestamps
      * because this doesn't increase our risk of replying to a forged address.
      */
-    a = from;
     if ( *a == '"' ) {
-        a++;
+        p = a + 1;
+    } else {
+        p = a;
     }
-    if (( strncasecmp( a, "SRS", 3 ) == 0 ) && ( strlen( a ) > 13 ) &&
-        (( a[ 3 ] == '0' ) || ( a[ 3 ] == '1' )) &&
-        (( a[ 4 ] == '=' ) || ( a[ 4 ] == '-' ) ||
-        ( a[ 4 ] == '+' ))) {
+    if (( strncasecmp( p, "SRS", 3 ) == 0 ) && ( yasllen( a ) > 13 ) &&
+        (( p[ 3 ] == '0' ) || ( p[ 3 ] == '1' )) &&
+        (( p[ 4 ] == '=' ) || ( p[ 4 ] == '-' ) ||
+        ( p[ 4 ] == '+' ))) {
+
+        if ( *a == '"' ) {
+            yaslrange( a, 1, -1 );
+            buf = yaslauto( "\"" );
+        } else {
+            buf = yaslempty( );
+        }
+
         if ( a[ 3 ] == '1' ) {
-            p = strstr( a, "==" );
-            if ( p ) {
-                p += 2;
+            yaslrange( a, 5, -1 );
+            if ((( p = strstr( a, "==" )) != NULL ) ||
+                (( p = strstr( a, "=-" )) != NULL ) ||
+                (( p = strstr( a, "=+" )) != NULL )) {
+                yaslrange( a, ( p - a ) + 2, -1 );
             }
         } else {
-            p = a + 5;
+            yaslrange( a, 5, -1 );
         }
 
         /* Skip the hash and timestamp */
-        if (( p != NULL ) &&
-                (( p = strchr( p, '=' )) != NULL ) &&
+        if ( yasllen( a ) &&
+                (( p = strchr( a, '=' )) != NULL ) &&
                 (( p = strchr( p + 1, '=' )) != NULL )) {
-            p++;
+            yaslrange( a, ( p - a ) + 1, -1 );
         }
 
-        /* p is now domain.tld=localpart@forwarder.tld or NULL
+        /* a is now domain.tld=localpart@forwarder.tld
          * or the address is borked */
-        if (( p != NULL ) && (( sep = strchr( p, '=' )) != NULL )) {
-            if (( at = strrchr( sep, '@' )) != NULL ) {
-                *at = '\0';
-            }
-            *sep = '\0';
-            if ( *from == '"' ) {
-                sprintf( buf, "\"%s@%s", sep + 1, p );
-            } else {
-                sprintf( buf, "%s@%s", sep + 1, p );
-            }
+        if ( yasllen( a ) && (( sep = strchr( a, '=' )) != NULL ) &&
+                (( at = strrchr( sep, '@' )) != NULL )) {
+            buf = yaslcatlen( buf, sep + 1, at - sep - 1 );
+            buf = yaslcat( buf, "@" );
+            buf = yaslcatlen( buf, a, sep - a );
+        }
+
+        yaslfree( a );
+
+        if ( yasllen( buf ) > 1 ) {
             syslog( LOG_NOTICE, "check_from: corrected for SRS: %s", buf );
             strncpy( from, buf, MAXLINE - 1 );
+            a = buf;
+        } else {
+            yaslfree( buf );
+            a = yaslauto( from );
         }
     }
 
-    if (( p = strrchr( from, '@' )) == NULL ) {
-        for ( p = from ; *p; ++p );
+    /* Chop off the domain */
+    if (( p = strrchr( a, '@' )) != NULL ) {
+        yaslrange( a, 0, p - a - 1 );
     }
 
-    len = p - from;
-    for ( cur = ignore; cur->name; ++cur ) {
+    yasltrim( a, "\"" );
+    yasltolower( a );
+    len = yasllen( a );
+    p = a + len;
+
+    for ( cur = ignore; cur->name; cur++ ) {
+        /* This is a bit convoluted because we're matching the end of
+         * the string.
+         */
 	if ( len >= cur->len &&
-		strncasecmp( cur->name, p - cur->len, cur->len == 0 )) {
+		memcmp( cur->name, p - cur->len, cur->len ) == 0 ) {
+            yaslfree( a );
 	    return( 1 );
         }
     }
 
+    yaslfree( a );
     return( 0 );
 }
 
