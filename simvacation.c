@@ -555,6 +555,14 @@ check_from()
         }
     }
 
+    /* Canonicalize BATV addresses */
+    if (( strncasecmp( a, "prvs=", 5 ) == 0 ) &&
+            (( p = strchr( a + 5, '=' )) != NULL )) {
+        yaslrange( a, p - a + 1, -1 );
+        syslog( LOG_NOTICE, "check_from: corrected for BATV: %s", a );
+        strncpy( from, a, MAXLINE - 1 );
+    }
+
     /* Chop off the domain */
     if (( p = strrchr( a, '@' )) != NULL ) {
         yaslrange( a, 0, p - a - 1 );
