@@ -32,7 +32,8 @@ AS_IF([test x$with_backend = xbdb],
 AS_IF([test x$with_backend = xlmdb],
 [AX_CHECK_LIBRARY(LMDB, [lmdb.h], [lmdb], [], [AC_MSG_ERROR([Unable to find LMDB])])])
 
-AS_IF([test x$with_backend = xredis], [PKG_CHECK_MODULES([URCL], [urcl])])
+AS_IF([test x$with_backend = xredis],
+[PKG_CHECK_MODULES([URCL], [urcl >= 1.1])])
 
 AM_CONDITIONAL(BACKEND_BDB, [test x$with_backend = xbdb])
 AM_CONDITIONAL(BACKEND_LMDB, [test x$with_backend = xlmdb])

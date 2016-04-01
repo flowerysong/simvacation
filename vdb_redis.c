@@ -80,17 +80,18 @@ vdb_recent( struct vdb *vdb, char *from )
     int         retval = 0;
     time_t      last, now;
     char        *key;
-    char        *value;
+    redisReply  *res = NULL;
 
     if (( key = redis_vdb_key( vdb->rcpt, from )) == NULL ) {
         return( 0 );
     }
 
-    if (( value = urcl_get( vdb->u, key )) == NULL ) {
+    if ((( res = urcl_command( vdb->u, key, "GET %s", key )) == NULL ) ||
+            ( res->type != REDIS_REPLY_STRING )) {
         goto cleanup;
     }
 
-    last = (time_t)strtoll( value, NULL, 10 );
+    last = (time_t)strtoll( res->str, NULL, 10 );
 
     if (( now = time( NULL )) < 0 ) {
         syslog( LOG_ALERT, "redis vdb_recent time: %m" );
@@ -98,10 +99,11 @@ vdb_recent( struct vdb *vdb, char *from )
         retval = 1;
     } else {
         /* This shouldn't happen, so let's clean it up */
-        urcl_del( vdb->u, key );
+        urcl_free_result( urcl_command( vdb->u, key, "DEL %s", key ));
     }
 
 cleanup:
+    urcl_free_result( res );
     free( key );
     return( retval );
 }
@@ -119,6 +121,7 @@ vdb_store_reply( struct vdb *vdb, char *from )
     time_t      now;
     char        *key;
     char        value[ 16 ];
+    char        expire[ 16 ];
 
     if (( now = time( NULL )) < 0 ) {
         syslog( LOG_ALERT, "redis vdb_store_reply time: %m" );
@@ -127,9 +130,10 @@ vdb_store_reply( struct vdb *vdb, char *from )
 
     key = redis_vdb_key( vdb->rcpt, from );
     snprintf( value, 16, "%lld", (long long)now );
+    snprintf( expire, 16, "%lld", vdb->interval );
 
-    urcl_set( vdb->u, key, value );
-    urcl_expire( vdb->u, key, (long long)vdb->interval );
+    urcl_free_result( urcl_command( vdb->u, key, "SET %s %s", key, value ));
+    urcl_free_result( urcl_command( vdb->u, key, "EXPIRE %s %s", key, expire ));
 
     return( 0 );
 }

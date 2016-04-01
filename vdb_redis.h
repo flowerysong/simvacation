@@ -8,9 +8,9 @@
 #endif
 
 struct vdb {
-    URCL    *u;
-    char    *rcpt;
-    time_t  interval;
+    urclHandle  *u;
+    char        *rcpt;
+    time_t      interval;
 };
 
 #include "vdb.h"
