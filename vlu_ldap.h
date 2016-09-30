@@ -16,6 +16,7 @@
 #define ATTR_ONVAC      "onVacation"
 #define ATTR_VACMSG     "vacationMessage"
 #define ATTR_CN         "cn"
+#define ATTR_NAME       "displayName"
 
 struct vlu {
     LDAP            *ld;
@@ -26,6 +27,7 @@ struct vlu {
     char            *attr_vacation;
     char            *attr_vacation_msg;
     char            *attr_cn;
+    char            *attr_name;
 };
 
 #include "vlu.h"

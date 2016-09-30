@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2015 Regents of The University of Michigan
+ * Copyright (c) 2004-2016 Regents of The University of Michigan
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -55,6 +55,7 @@ vlu_init( char *config ) {
     vlu->attr_vacation = ATTR_ONVAC;
     vlu->attr_vacation_msg = ATTR_VACMSG;
     vlu->attr_cn = ATTR_CN;
+    vlu->attr_name = ATTR_NAME;
     vlu->ldap_timeout.tv_sec = 30;
 
     if (( fp = fopen( config, "r" )) == NULL ) {
@@ -157,12 +158,13 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
     LDAPMessage *result;
     char **vacstatus;
     char *searchbase = SEARCHBASE;
-    static char *attrs[4];
-
-    attrs[ 0 ] = vlu->attr_cn;
-    attrs[ 1 ] = vlu->attr_vacation;
-    attrs[ 2 ] = vlu->attr_vacation_msg;
-    attrs[ 3 ] = NULL;
+    char *attrs[] = {
+        vlu->attr_cn,
+        vlu->attr_vacation,
+        vlu->attr_vacation_msg,
+        vlu->attr_name,
+        NULL
+    };
 
     sprintf( filter, "uid=%s", rcpt );
     rc = ldap_search_st( vlu->ld, searchbase, LDAP_SCOPE_SUBTREE,
@@ -186,7 +188,7 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
         syslog( LOG_ALERT, "vlu_search: ldap_search failed: %s",
                 ldap_err2string( rc ));
         return( retval );
-    } 
+    }
 
     matches = ldap_count_entries( vlu->ld, result );
 
@@ -252,7 +254,7 @@ vlu_message( struct vlu *vlu, char *rcpt ) {
     yastr   vacmsg;
     char    *p;
 
-    rawmsg = ldap_get_values( vlu->ld, vlu->result, ATTR_VACMSG );
+    rawmsg = ldap_get_values( vlu->ld, vlu->result, vlu->attr_vacation_msg );
 
     if ( rawmsg == NULL ) {
         return NULL;
@@ -280,8 +282,13 @@ vlu_name( struct vlu *vlu, char *rcpt ) {
 
     char *
 vlu_display_name( struct vlu *vlu, char *rcpt ) {
-    char **xdn = ldap_explode_dn( ldap_get_dn( vlu->ld, vlu->result ), 1 );
-    return xdn[0];
+    char **res;
+
+    res = ldap_get_values( vlu->ld, vlu->result, vlu->attr_name );
+    if ( res == NULL ) {
+        res = ldap_explode_dn( ldap_get_dn( vlu->ld, vlu->result ), 1 );
+    }
+    return res[ 0 ];
 }
 
     void
