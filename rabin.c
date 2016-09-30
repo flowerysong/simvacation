@@ -20,6 +20,12 @@
  * SOFTWARE.
  */
 
+/* This is an implementation of the Rabin fingerprinting scheme, and returns
+ * an unsigned 64 bit integer with a provably small chance of collision. The
+ * fingerprint is not cryptographically secure.
+ */
+
+
 #include "rabin.h"
 
 static uint64_t rh_lookup( uint64_t );
