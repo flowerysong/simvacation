@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2013 Regents of The University of Michigan.
+ * Copyright (c) 2004, 2013-2016 Regents of The University of Michigan.
  * Copyright (c) 1983, 1987 Regents of the University of California.
  * Copyright (c) 1983 Eric P. Allman.
  * All Rights reserved.
@@ -205,6 +205,9 @@ main( int argc, char **argv )
     }
 
     myexit( EX_OK );
+
+    /* This doesn't do anything, but it makes the compiler happy. */
+    return EX_OK;
 }
 
 /*

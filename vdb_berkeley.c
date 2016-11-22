@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004, 2013, 2014 Regents of The University of Michigan.
+ * Copyright (c) 2004, 2013-2016 Regents of The University of Michigan.
  * Copyright (c) 1983, 1987 Regents of the University of California.
  * Copyright (c) 1983 Eric P. Allman.
  * All Rights reserved.
@@ -34,6 +34,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
 
@@ -198,7 +199,7 @@ vdb_store_reply( struct vdb *vdb, char *from )
     struct name_list *
 vdb_get_names( struct vdb *vdb )
 {
-    char                *cur_path;
+    char                cur_path[ MAXPATHLEN ];
     char                cur_char;
     char                *vdbdir = VDBDIR;
     char                buf[ MAXPATHLEN ];

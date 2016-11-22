@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Regents of The University of Michigan.
+ * Copyright (c) 2015-2016 Regents of The University of Michigan.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -281,7 +281,7 @@ lmdb_vdb_key( char *rcpt, char *from )
     /* MDB_MAXKEYSIZE. 511 is the (old?) default and should be safe. */
     char            key[ 511 ];
 
-    snprintf( key, 511, "user:%s:%llx", rcpt,
+    snprintf( key, 511, "user:%s:%" PRIx64, rcpt,
             rabin_fingerprint( from, strlen( from )));
     syslog( LOG_DEBUG, "lmdb_vdb_key: %s", key );
 

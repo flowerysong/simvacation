@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Regents of The University of Michigan.
+ * Copyright (c) 2015-2016 Regents of The University of Michigan.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -130,7 +130,7 @@ vdb_store_reply( struct vdb *vdb, char *from )
 
     key = redis_vdb_key( vdb->rcpt, from );
     snprintf( value, 16, "%lld", (long long)now );
-    snprintf( expire, 16, "%lld", vdb->interval );
+    snprintf( expire, 16, "%lld", (long long)vdb->interval );
 
     urcl_free_result( urcl_command( vdb->u, key, "SET %s %s", key, value ));
     urcl_free_result( urcl_command( vdb->u, key, "EXPIRE %s %s", key, expire ));
@@ -163,7 +163,7 @@ redis_vdb_key( char *rcpt, char *from )
 {
     char            key[ 128 ];
 
-    snprintf( key, 128, "simvacation:user:%s:%llx", rcpt,
+    snprintf( key, 128, "simvacation:user:%s:%" PRIx64, rcpt,
             rabin_fingerprint( from, strlen( from )));
     syslog( LOG_DEBUG, "redis_vdb_key: %s", key );
 
