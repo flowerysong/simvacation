@@ -43,4 +43,7 @@ endif
 
 dist_man_MANS = simvacation.8 simunvacation.8
 
-EXTRA_DIST = COPYING.yasl
+EXTRA_DIST = COPYING.yasl VERSION packaging/rpm/simvacation.spec
+
+rpm: dist-xz
+	rpmbuild -ta $(distdir).tar.xz

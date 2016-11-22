@@ -1,0 +1,42 @@
+Summary:        A vacation autoresponder
+Name:           @PACKAGE_NAME@
+Version:        @PACKAGE_VERSION@
+Release:        1%{?dist}
+License:        BSD and MIT
+Group:          Applications/Internet
+URL:            http://its.umich.edu/
+Source0:        %{name}-%{version}.tar.xz
+BuildRequires:  setup
+BuildRequires:  pkgconfig(urcl)
+BuildRequires:  openldap-devel
+
+%description
+simvacation is a simple vacation autoresponder that looks up users in LDAP.
+
+%prep
+%setup -q
+
+%build
+%configure \
+    --with-backend=redis
+
+make %{?_smp_mflags}
+
+%install
+rm -rf %{buildroot}
+make DESTDIR=%{buildroot} INSTALL_OPTS='' install
+
+%clean
+rm -rf %{buildroot}
+
+%files
+%defattr(-,root,root,-)
+%{_bindir}/simvacation
+%{_bindir}/simunvacation
+%{_mandir}/man8/simvacation.8*
+%{_mandir}/man8/simunvacation.8*
+
+
+%changelog
+* %(date "+%a %b %d %Y") (Automated RPM build) - %{version}-%{release}
+- See git log for actual changes.

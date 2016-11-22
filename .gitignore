@@ -15,7 +15,9 @@ configure
 depcomp
 install-sh
 missing
+packaging/rpm/simvacation.spec
 simunvacation
 simvacation
+simvacation-*.tar.xz
 simvacreport
 stamp-*

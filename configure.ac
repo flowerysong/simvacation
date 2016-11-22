@@ -2,7 +2,7 @@
 
 AC_PREREQ(2.63)
 AC_INIT(simvacation, m4_esyscmd([bash version.sh]), simta@umich.edu)
-AM_INIT_AUTOMAKE([foreign])
+AM_INIT_AUTOMAKE([foreign no-dist-gzip dist-xz])
 AC_CONFIG_SRCDIR([simunvacation.c])
 AC_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -58,5 +58,5 @@ AC_FUNC_MALLOC
 AC_FUNC_FORK
 AC_CHECK_FUNCS([dup2 memset strcasecmp strdup strerror strncasecmp strrchr])
 
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile packaging/rpm/simvacation.spec])
 AC_OUTPUT
