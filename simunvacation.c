@@ -2,7 +2,7 @@
  * simunvacation.c - clean up database files for people who are no longer
  * "on vacation".
  *
- * Copyright (c) 2004-2015 Regents of The University of Michigan.
+ * Copyright (c) 2004-2016 Regents of The University of Michigan.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,7 @@
 #include "simvacation.h"
 #include "vdb.h"
 #include "vlu.h"
+#include "vutil.h"
 
 void usage( void );
 
@@ -48,7 +49,9 @@ int main( int argc, char **argv)
 
     struct vlu *vlu;
     struct vdb *vdb;
-    char *vlu_config = CONFFILE;
+
+    char            *config_file = CONFFILE;
+    ucl_object_t    *config;
 
     struct name_list *uniqnames;
     struct name_list *u;
@@ -57,7 +60,7 @@ int main( int argc, char **argv)
 	switch( (char) ch ) {
 
 	case 'c':
-	    vlu_config = optarg;
+	    config_file = optarg;
 	    break;
 
         case 'd':
@@ -77,10 +80,14 @@ int main( int argc, char **argv)
         openlog( "simunvacation", LOG_PID, LOG_VACATION );
     }
 
-    vdb = vdb_init( "simunvacation" );
+    if (( config = vacation_config( config_file )) == NULL ) {
+        exit( 1 );
+    }
+
+    vdb = vdb_init( config, "simunvacation" );
     uniqnames = vdb_get_names( vdb );
 
-    vlu = vlu_init( vlu_config );
+    vlu = vlu_init( config );
     if ( vlu_connect( vlu ) != 0 ) {
         vdb_close( vdb );
         exit( 1 );

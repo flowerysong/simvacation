@@ -4,11 +4,11 @@ AM_CPPFLAGS = @CPPFLAGS@ @LDAP_CPPFLAGS@ @BDB_CPPFLAGS@
 
 bin_PROGRAMS = simvacation simunvacation
 
-simvacation_SOURCES = yasl.c yasl.h argcargv.c argcargv.h vdb.h vlu.h simvacation.h simvacation.c
-simvacation_LDADD =
+simvacation_SOURCES = yasl.c yasl.h vdb.h vlu.h vutil.c vutil.h simvacation.h simvacation.c
+simvacation_LDADD = $(LIBUCL_LIBS)
 
-simunvacation_SOURCES = yasl.c yasl.h argcargv.c argcargv.h simvacation.h vdb.h vlu.h simunvacation.c
-simunvacation_LDADD =
+simunvacation_SOURCES = yasl.c yasl.h simvacation.h vdb.h vlu.h vutil.c vutil.h simunvacation.c
+simunvacation_LDADD = $(LIBUCL_LIBS)
 
 if BACKEND_NULL
 simvacation_SOURCES += vdb_null.c vdb_null.h vlu_null.c vlu_null.h

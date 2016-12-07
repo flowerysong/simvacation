@@ -21,6 +21,8 @@ AC_PROG_CC
 AC_PROG_CC_C99
 
 # Checks for libraries.
+PKG_CHECK_MODULES([LIBUCL], [libucl])
+
 AS_IF([test x$with_backend = xbdb],
 [AX_PATH_BDB([4], [
     AC_DEFINE([HAVE_BDB], [1], [Define if BDB exists.])

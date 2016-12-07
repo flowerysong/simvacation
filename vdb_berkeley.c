@@ -46,7 +46,7 @@ void    bdb_err_log ( const DB_ENV *, const char *, const char * );
 char   *bdb_path( char *, char * );
 
     struct vdb *
-vdb_init( char *rcpt )
+vdb_init( const ucl_object_t *config, const char *rcpt )
 {
     int         rc;
     char        *path;

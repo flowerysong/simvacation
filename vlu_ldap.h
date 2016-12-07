@@ -21,13 +21,13 @@
 struct vlu {
     LDAP            *ld;
     LDAPMessage     *result;
-    char            *ldap_host;
-    int             ldap_port;
+    const char      *ldap_host;
+    int64_t         ldap_port;
     struct timeval  ldap_timeout;
-    char            *attr_vacation;
-    char            *attr_vacation_msg;
-    char            *attr_cn;
-    char            *attr_name;
+    const char      *attr_vacation;
+    const char      *attr_vacation_msg;
+    const char      *attr_cn;
+    const char      *attr_name;
 };
 
 #include "vlu.h"

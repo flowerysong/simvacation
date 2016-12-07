@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2016 Regents of The University of Michigan
+ * Copyright (c) 2016 Regents of The University of Michigan
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,57 +20,27 @@
  * SOFTWARE.
  */
 
-#include <stdlib.h>
-#include <time.h>
+#include <syslog.h>
 
 #include "simvacation.h"
-#include "vdb_null.h"
+#include "vutil.h"
 
-    struct vdb *
-vdb_init( ucl_object_t *config, char *rcpt )
+    ucl_object_t *
+vacation_config( char *config_file )
 {
-    return( calloc( 1, 1 ));
+    struct ucl_parser   *parser;
+    const char          *err;
+
+    parser = ucl_parser_new( UCL_PARSER_KEY_LOWERCASE );
+    if ( !ucl_parser_add_file( parser, config_file )) {
+        syslog( LOG_ERR, "vacation_config: UCL parsing failed" );
+        return( NULL );
+    }
+    if (( err = ucl_parser_get_error( parser )) != NULL ) {
+        syslog( LOG_ERR, "vacation_config: libucl error: %s", err );
+        return( NULL );
+    }
+
+    return( ucl_parser_get_object( parser ));
 }
 
-    void
-vdb_close( struct vdb *vdb )
-{
-    free( vdb );
-    return;
-}
-
-    int
-vdb_recent( struct vdb *vdb, char *from )
-{
-    return( 0 );
-}
-
-   int
-vdb_store_interval( struct vdb *vdb, time_t interval )
-{
-    return( 0 );
-}
-
-    int
-vdb_store_reply( struct vdb *vdb, char *from )
-{
-    return( 0 );
-}
-
-    struct name_list *
-vdb_get_names( struct vdb *vdb )
-{
-    return( NULL );
-}
-
-    void
-vdb_clean( struct vdb *vdb, char *user )
-{
-    return;
-}
-
-    void
-vdb_gc( struct vdb *vdb )
-{
-    return;
-}

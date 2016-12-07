@@ -40,15 +40,36 @@
 static char *redis_vdb_key( char *, char * );
 
     struct vdb *
-vdb_init( char *rcpt )
+vdb_init( const ucl_object_t *config, const char *rcpt )
 {
-    struct vdb  *vdb;
+    struct vdb          *vdb;
+    struct vdb          *res = NULL;
+    const char          *host = NULL;
+    int64_t             port = 6379;
+    const ucl_object_t  *config_key;
 
-    if (( vdb = calloc( 1, sizeof( struct vdb ))) == NULL ) {
-        return( NULL );
+    if (( config = ucl_object_lookup( config, "redis" )) == NULL ) {
+        syslog( LOG_DEBUG, "vdb_init: no config information, using defaults" );
+    } else {
+        if (( config_key = ucl_object_lookup( config, "host" )) != NULL ) {
+            if ( !ucl_object_tostring_safe( config_key, &host )) {
+                syslog( LOG_ERR, "vdb_init: ucl_object_tostring_safe failed" );
+                goto error;
+            }
+        }
+        if (( config_key = ucl_object_lookup( config, "port" )) != NULL ) {
+            if ( !ucl_object_toint_safe( config_key, &port )) {
+                syslog( LOG_ERR, "vdb_init: ucl_object_toint_safe failed" );
+                goto error;
+            }
+        }
     }
 
-    if (( vdb->u = urcl_connect( VDBDIR, 6379 )) == NULL ) {
+    if (( vdb = calloc( 1, sizeof( struct vdb ))) == NULL ) {
+        goto error;
+    }
+
+    if (( vdb->u = urcl_connect( host ? host : VDBDIR , port )) == NULL ) {
         syslog( LOG_ALERT, "redis vdb_init urcl_connect: failed" );
         goto error;
     }
@@ -56,11 +77,14 @@ vdb_init( char *rcpt )
     vdb->interval = SECSPERDAY * DAYSPERWEEK;
     vdb->rcpt = strdup( rcpt );
 
-    return( vdb );
+    res = vdb;
 
 error:
-    vdb_close( vdb );
-    return( NULL );
+    if ( vdb && !res ) {
+        vdb_close( vdb );
+    }
+
+    return( res );
 }
 
     void

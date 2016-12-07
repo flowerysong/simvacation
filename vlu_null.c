@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 Regents of The University of Michigan
+ * Copyright (c) 2013-2016 Regents of The University of Michigan
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,12 +30,11 @@
 #include <string.h>
 #include <strings.h>
 
-#include "argcargv.h"
 #include "simvacation.h"
 #include "vlu_null.h"
 
     struct vlu  *
-vlu_init( char *config ) {
+vlu_init( const ucl_object_t *config ) {
     struct vlu *vlu;
 
     if (( vlu = malloc( sizeof( struct vlu ))) == NULL ) {

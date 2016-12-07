@@ -41,7 +41,7 @@ char *lmdb_vdb_key( char *, char * );
 void lmdb_vdb_assert( MDB_env *, const char * );
 
     struct vdb *
-vdb_init( char *rcpt )
+vdb_init( const ucl_object_t *config, const char *rcpt )
 {
     int         rc;
     struct vdb  *vdb;

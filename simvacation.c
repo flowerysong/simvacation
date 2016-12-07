@@ -41,9 +41,12 @@
 #include <strings.h>
 #include <unistd.h>
 
+#include <ucl.h>
+
 #include "simvacation.h"
 #include "vdb.h"
 #include "vlu.h"
+#include "vutil.h"
 
 /*
  *  VACATION -- return a message to the sender when on vacation.
@@ -92,11 +95,12 @@ int debug;
 main( int argc, char **argv )
 {
     debug = 0;
-    time_t interval;
-    int ch, rc;
-    char *vacmsg;
-    char *progname;
-    char *vlu_config = CONFFILE;
+    time_t              interval;
+    int                 ch, rc;
+    char                *vacmsg;
+    char                *progname;
+    char                *config_file = CONFFILE;
+    ucl_object_t        *config;
 
     if ( (progname = strrchr( argv[0], '/' )) == NULL )
 	progname = strdup( argv[0] );
@@ -115,7 +119,7 @@ main( int argc, char **argv )
     while (( ch = getopt( argc, argv, "c:df:r:" )) != EOF ) {
 	switch( (char) ch ) {
         case 'c':
-            vlu_config = optarg;
+            config_file = optarg;
             break;
         case 'd':
             debug = 1;
@@ -154,7 +158,11 @@ main( int argc, char **argv )
 
     rcpt = *argv;
 
-    if (( vlu = vlu_init( vlu_config )) == NULL ) {
+    if (( config = vacation_config( config_file )) == NULL ) {
+        myexit( EX_TEMPFAIL );
+    }
+
+    if (( vlu = vlu_init( config )) == NULL ) {
         myexit( EX_TEMPFAIL );
     }
 
@@ -175,7 +183,7 @@ main( int argc, char **argv )
         myexit( rc );
     }
 
-    if (( vdb = vdb_init( rcpt )) == NULL ) {
+    if (( vdb = vdb_init( config, rcpt )) == NULL ) {
         myexit( EX_OK );
     }
 

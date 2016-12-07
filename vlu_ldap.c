@@ -31,20 +31,14 @@
 #include <string.h>
 #include <strings.h>
 
-#include "argcargv.h"
 #include "simvacation.h"
 #include "vlu_ldap.h"
 
-    struct vlu  *
-vlu_init( char *config ) {
-    struct vlu *vlu;
-    struct vlu *ret = NULL;
-    FILE *fp;
-    ACAV *acav = NULL;
-    char **av;
-    int ac;
-    char *line = NULL;
-    size_t len = 0;
+    struct vlu *
+vlu_init( const ucl_object_t *config ) {
+    struct vlu          *vlu;
+    struct vlu          *ret = NULL;
+    const ucl_object_t  *config_key;
 
     if (( vlu = malloc( sizeof( struct vlu ))) == NULL ) {
         syslog( LOG_ERR, "vlu_init: malloc error: %m" );
@@ -58,57 +52,27 @@ vlu_init( char *config ) {
     vlu->attr_name = ATTR_NAME;
     vlu->ldap_timeout.tv_sec = 30;
 
-    if (( fp = fopen( config, "r" )) == NULL ) {
-        syslog( LOG_ERR, "vlu_init: open %s: %m", config );
+    if (( config = ucl_object_lookup( config, "ldap" )) == NULL ) {
+        syslog( LOG_DEBUG, "vlu_init: no config information, using defaults" );
         goto error;
-    }
-
-    if (( acav = acav_alloc( )) == NULL ) {
-        syslog( LOG_ERR, "vlu_init: acav_alloc error" );
-        goto error;
-    }
-
-    while ((getline( &line, &len, fp)) != -1 ) {
-        if (( line[0] == '#' ) || ( line[0] == '\0' )) {
-            continue;
-        }
-
-        if (( ac = acav_parse( acav, line, &av )) < 0 ) {
-            syslog( LOG_ERR, "vlu_init: acav_parse error" );
-            goto error;
-        }
-
-        if ( strcasecmp( av[ 0 ], "host" ) == 0 ) {
-            if ( ac != 2 ) {
-                syslog( LOG_ERR, "vlu_init: usage: host <ldap host>" );
-                goto error;
-            }
-            if ((vlu->ldap_host = strdup( av[ 1 ] )) == NULL ) {
-                syslog( LOG_ERR, "vlu_init: strdup: %m" );
+    } else {
+        if (( config_key = ucl_object_lookup( config, "host" )) != NULL ) {
+            if ( !ucl_object_tostring_safe( config_key, &(vlu->ldap_host))) {
+                syslog( LOG_ERR, "vlu_init: ucl_object_tostring_safe failed" );
                 goto error;
             }
         }
-        else if ( strcasecmp( av[ 0 ], "port" ) == 0 ) {
-            if ( ac != 2 ) {
-                syslog( LOG_ERR, "vlu_init: usage: port <ldap port>" );
+        if (( config_key = ucl_object_lookup( config, "port" )) != NULL ) {
+            if ( !ucl_object_toint_safe( config_key, &(vlu->ldap_port ))) {
+                syslog( LOG_ERR, "vlu_init: ucl_object_toint_safe failed" );
                 goto error;
             }
-            vlu->ldap_port = atoi( av[ 1 ] );
         }
-        else if ( strcasecmp( av[ 0 ], "timeout" ) == 0 ) {
-            if ( ac != 2 ) {
-                syslog( LOG_ERR, "vlu_init: usage: timeout <ldap timeout>" );
-                goto error;
-            }
-            vlu->ldap_timeout.tv_sec = atoi( av[ 1 ]);
-        }
-        else if ( strcasecmp( av[ 0 ], "vacationattr" ) == 0 ) {
-            if ( ac != 2 ) {
-                syslog( LOG_ERR, "vlu_init: usage: vacationattr <attribute>" );
-                goto error;
-            }
-            if ((vlu->attr_vacation = strdup( av[ 1 ] )) == NULL ) {
-                syslog( LOG_ERR, "vlu_init: strdup: %m" );
+        if (( config_key = ucl_object_lookup( config,
+                "vacationattr" )) != NULL ) {
+            if ( !ucl_object_tostring_safe( config_key,
+                    &(vlu->attr_vacation))) {
+                syslog( LOG_ERR, "vlu_init: ucl_object_tostring_safe failed" );
                 goto error;
             }
         }
@@ -116,14 +80,7 @@ vlu_init( char *config ) {
 
     ret = vlu;
 
-    error:
-
-    free( line );
-
-    if ( acav ) {
-        acav_free( acav );
-    }
-
+error:
     if ( ret == NULL ) {
         free( vlu );
     }
@@ -158,7 +115,7 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
     LDAPMessage *result;
     char **vacstatus;
     char *searchbase = SEARCHBASE;
-    char *attrs[] = {
+    const char *attrs[] = {
         vlu->attr_cn,
         vlu->attr_vacation,
         vlu->attr_vacation_msg,
