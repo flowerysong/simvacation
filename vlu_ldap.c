@@ -56,22 +56,8 @@ vlu_init( const ucl_object_t *config ) {
         syslog( LOG_DEBUG, "vlu_init: no config information, using defaults" );
         goto error;
     } else {
-        if (( config_key = ucl_object_lookup( config, "host" )) != NULL ) {
-            if ( !ucl_object_tostring_safe( config_key, &(vlu->ldap_host))) {
-                syslog( LOG_ERR, "vlu_init: ucl_object_tostring_safe failed" );
-                goto error;
-            }
-        }
-        if (( config_key = ucl_object_lookup( config, "port" )) != NULL ) {
-            if ( !ucl_object_toint_safe( config_key, &(vlu->ldap_port ))) {
-                syslog( LOG_ERR, "vlu_init: ucl_object_toint_safe failed" );
-                goto error;
-            }
-        }
-        if (( config_key = ucl_object_lookup( config,
-                "vacationattr" )) != NULL ) {
-            if ( !ucl_object_tostring_safe( config_key,
-                    &(vlu->attr_vacation))) {
+        if (( config_key = ucl_object_lookup( config, "uri" )) != NULL ) {
+            if ( !ucl_object_tostring_safe( config_key, &(vlu->ldap_uri))) {
                 syslog( LOG_ERR, "vlu_init: ucl_object_tostring_safe failed" );
                 goto error;
             }
@@ -90,18 +76,18 @@ error:
 
     int
 vlu_connect( struct vlu *vlu ) {
-    char *errmsg;
+    int             rc;
+    struct berval   credentials = { 0 };
 
-    if (( vlu->ld = ldap_open( vlu->ldap_host, vlu->ldap_port )) == NULL ) {
-	syslog( LOG_INFO, "ldap: ldap_open failed" );
+    if ( ldap_initialize( &(vlu->ld), vlu->ldap_uri ) != LDAP_SUCCESS ) {
+	syslog( LOG_INFO, "ldap: ldap_initialize failed" );
 	return( 1 );
     }
 
-    if (( ldap_simple_bind_s( vlu->ld, BIND_DN, BIND_METHOD ))
-            != LDAP_SUCCESS ) {
-	ldap_get_option ( vlu->ld, LDAP_OPT_ERROR_STRING, &errmsg) ;
-	syslog( LOG_ALERT, "vlu_connect: ldap_simple_bind failed: %s", errmsg);
-	free (errmsg);
+    if (( rc = ldap_sasl_bind_s( vlu->ld, NULL, LDAP_SASL_SIMPLE, &credentials,
+            NULL, NULL, NULL )) != LDAP_SUCCESS ) {
+	syslog( LOG_ALERT, "vlu_connect: ldap_sasl_bind_s failed: %s",
+                ldap_err2string( rc ));
 	return( 1 );
     }
 
@@ -113,9 +99,10 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
     char filter[64];
     int rc, retval, matches;
     LDAPMessage *result;
-    char **vacstatus;
+    struct berval   **vacstatus;
     char *searchbase = SEARCHBASE;
-    const char *attrs[] = {
+
+    char *attrs[] = {
         vlu->attr_cn,
         vlu->attr_vacation,
         vlu->attr_vacation_msg,
@@ -124,8 +111,8 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
     };
 
     sprintf( filter, "uid=%s", rcpt );
-    rc = ldap_search_st( vlu->ld, searchbase, LDAP_SCOPE_SUBTREE,
-	    filter, attrs, 0, &vlu->ldap_timeout, &result );
+    rc = ldap_search_ext_s( vlu->ld, searchbase, LDAP_SCOPE_SUBTREE,
+            filter, attrs, 0, NULL, NULL, &vlu->ldap_timeout, 0, &result );
 
     switch ( rc ) {
     case LDAP_SUCCESS:
@@ -159,9 +146,10 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
 
     vlu->result = ldap_first_entry( vlu->ld, result );
 
-    vacstatus = ldap_get_values( vlu->ld, vlu->result, vlu->attr_vacation );
+    vacstatus = ldap_get_values_len( vlu->ld, vlu->result, vlu->attr_vacation );
 
-    if ( vacstatus && ( strcasecmp( *vacstatus, "TRUE" ) == 0 )) {
+    if ( vacstatus && ( vacstatus[ 0 ]->bv_len == 4 ) && ( strncasecmp(
+            vacstatus[ 0 ]->bv_val, "TRUE", vacstatus[ 0 ]->bv_len ) == 0 )) {
         syslog( LOG_DEBUG, "vlu_search: user %s on vacation", rcpt );
     }
     else {
@@ -175,12 +163,12 @@ vlu_search( struct vlu *vlu, char *rcpt ) {
 
     struct name_list *
 vlu_aliases( struct vlu *vlu, char *rcpt ) {
-    char **cnames;
+    struct berval **cnames;
     int i;
     struct name_list *result;
     struct name_list *cur;
 
-    cnames = ldap_get_values( vlu->ld, vlu->result, ATTR_CN );
+    cnames = ldap_get_values_len( vlu->ld, vlu->result, ATTR_CN );
 
     if (( cur = malloc( sizeof( struct name_list ))) == NULL ) {
 	syslog( LOG_ALERT, "vlu_aliases: malloc for name_list failed");
@@ -191,13 +179,13 @@ vlu_aliases( struct vlu *vlu, char *rcpt ) {
     cur->next = NULL;
     result = cur;
 
-    for ( i = 0; cnames && cnames[i] != NULL; i++ ) {
+    for ( i = 0; cnames && cnames[ i ] != NULL; i++ ) {
 	if (( cur->next = malloc( sizeof( struct name_list ))) == NULL ) {
 	    syslog( LOG_ALERT, "vlu_aliases: malloc for name_list failed");
             return NULL;
 	}
 	cur = cur->next;
-	cur->name = cnames[i];
+	cur->name = strndup( cnames[ i ]->bv_val, cnames[ i ]->bv_len );
 	cur->next = NULL;
     }
 
@@ -206,21 +194,20 @@ vlu_aliases( struct vlu *vlu, char *rcpt ) {
 
     char *
 vlu_message( struct vlu *vlu, char *rcpt ) {
-    char    **rawmsg;
-    int     i;
-    yastr   vacmsg;
-    char    *p;
+    struct berval   **rawmsg;
+    int             i;
+    yastr           vacmsg;
+    char            *p;
 
-    rawmsg = ldap_get_values( vlu->ld, vlu->result, vlu->attr_vacation_msg );
-
-    if ( rawmsg == NULL ) {
+    if (( rawmsg = ldap_get_values_len( vlu->ld, vlu->result,
+            vlu->attr_vacation_msg )) == NULL ) {
         return NULL;
     }
 
     vacmsg = yaslempty();
 
-    for ( i = 0; rawmsg[i] != NULL; i++ ) {
-        vacmsg = yaslcat( vacmsg, rawmsg[i] );
+    for ( i = 0; rawmsg[ i ] != NULL; i++ ) {
+        vacmsg = yaslcatlen( vacmsg, rawmsg[ i ]->bv_val, rawmsg[ i ]->bv_len );
     }
 
     for ( p = vacmsg; *p ; p++ ) {
@@ -239,13 +226,17 @@ vlu_name( struct vlu *vlu, char *rcpt ) {
 
     char *
 vlu_display_name( struct vlu *vlu, char *rcpt ) {
-    char **res;
+    struct berval   **name;
+    LDAPDN          dn = NULL;
 
-    res = ldap_get_values( vlu->ld, vlu->result, vlu->attr_name );
-    if ( res == NULL ) {
-        res = ldap_explode_dn( ldap_get_dn( vlu->ld, vlu->result ), 1 );
+    if (( name = ldap_get_values_len( vlu->ld, vlu->result,
+            vlu->attr_name )) == NULL ) {
+        ldap_str2dn( ldap_get_dn( vlu->ld, vlu->result ), &dn,
+                LDAP_DN_FORMAT_LDAPV3 );
+        return( strndup( dn[ 0 ][ 0 ]->la_value.bv_val,
+                dn[ 0 ][ 0 ]->la_value.bv_len ));
     }
-    return res[ 0 ];
+    return strndup( name[ 0 ]->bv_val, name[ 0 ]->bv_len );
 }
 
     void

@@ -1,9 +1,6 @@
 #ifndef VLU_LDAP_H
 #define VLU_LDAP_H
 
-/* FIXME */
-#define LDAP_DEPRECATED         1
-
 #include <lber.h>
 #include <ldap.h>
 
@@ -21,13 +18,12 @@
 struct vlu {
     LDAP            *ld;
     LDAPMessage     *result;
-    const char      *ldap_host;
-    int64_t         ldap_port;
+    const char      *ldap_uri;
     struct timeval  ldap_timeout;
-    const char      *attr_vacation;
-    const char      *attr_vacation_msg;
-    const char      *attr_cn;
-    const char      *attr_name;
+    char            *attr_vacation;
+    char            *attr_vacation_msg;
+    char            *attr_cn;
+    char            *attr_name;
 };
 
 #include "vlu.h"
