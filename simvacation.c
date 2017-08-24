@@ -237,7 +237,8 @@ readheaders( )
         if ( strncasecmp( buf, "From ", 5 ) == 0 ) {
             state = HEADER_UNKNOWN;
             /* FIXME: What is this looking at? */
-	    for ( p = buf + 5; *p && *p != ' '; ++p );
+	    for ( p = buf + 5; *p && *p != ' '; ++p )
+                ;
             *p = '\0';
             strncpy( from, buf + 5, MAXLINE - 1 );
             from[MAXLINE - 1] = '\0';
