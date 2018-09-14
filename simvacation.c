@@ -79,7 +79,8 @@ void    usage( char * );
 
 struct name_list  *names;
 struct headers  *h;
-static char    from[MAXLINE];
+static char     from[MAXLINE];
+yastr           canon_from;
 
 char            *rcpt;
 struct vdb      *vdb;
@@ -195,14 +196,14 @@ main( int argc, char **argv )
 
     readheaders();
 
-    if ( !vdb_recent( vdb, from )) {
+    if ( !vdb_recent( vdb, canon_from )) {
 	char rcptstr[MAXLINE];
         if (( vacmsg = vlu_message( vlu, rcpt )) == NULL ) {
             vacmsg = "I am currently out of email contact.\n"
                     "Your mail will be read when I return.";
         }
 
-	vdb_store_reply( vdb, from );
+	vdb_store_reply( vdb, canon_from );
 	sprintf(rcptstr, "%s@%s", rcpt, DOMAIN);
 	sendmessage( rcptstr, vacmsg );
 	syslog( LOG_DEBUG, "mail: sent message for %s to %s from %s",
@@ -559,7 +560,6 @@ check_from()
 
         if ( yasllen( buf ) > 1 ) {
             syslog( LOG_NOTICE, "check_from: corrected for SRS: %s", buf );
-            strncpy( from, buf, MAXLINE - 1 );
             a = buf;
         } else {
             yaslfree( buf );
@@ -572,8 +572,17 @@ check_from()
             (( p = strchr( a + 5, '=' )) != NULL )) {
         yaslrange( a, p - a + 1, -1 );
         syslog( LOG_NOTICE, "check_from: corrected for BATV: %s", a );
-        strncpy( from, a, MAXLINE - 1 );
     }
+
+    /* Canonicalize bastardized BATV addresses */
+    if (( strncasecmp( a, "btv1==", 6 ) == 0 ) &&
+            (( p = strstr( a + 6, "==" )) != NULL )) {
+        yaslrange( a, p - a + 2, -1 );
+        syslog( LOG_NOTICE, "check_from: corrected for Barracuda: %s", a);
+    }
+
+    /* Save canonical address */
+    canon_from = yasldup( a );
 
     /* Chop off the domain */
     if (( p = strrchr( a, '@' )) != NULL ) {
@@ -653,7 +662,7 @@ sendmessage( char *myname, char *vmsg )
      *  response.  This minimizes the potential for sorcerer's apprentice
      *  mode and denial-of-service attacks.
      */
-    printf( "To: %s\n", from );
+    printf( "To: %s\n", canon_from );
 
     /* RFC 3834 3.1.5
      *  The Subject field SHOULD contain a brief indication that the message
