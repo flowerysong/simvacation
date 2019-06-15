@@ -39,252 +39,242 @@
 #include <syslog.h>
 
 #include "simvacation.h"
-#include "vdb_berkeley.h"
 #include "vdb.h"
+#include "vdb_berkeley.h"
 
-void    bdb_err_log ( const DB_ENV *, const char *, const char * );
-char   *bdb_path( char *, char * );
+void  bdb_err_log(const DB_ENV *, const char *, const char *);
+char *bdb_path(char *, char *);
 
-    struct vdb *
-vdb_init( const ucl_object_t *config, const char *rcpt )
-{
+struct vdb *
+vdb_init(const ucl_object_t *config, const char *rcpt) {
     int         rc;
-    char        *path;
-    struct vdb  *vdb;
+    char *      path;
+    struct vdb *vdb;
 
-    if (( vdb = calloc( 1, sizeof( struct vdb ))) == NULL ) {
-        return( NULL );
+    if ((vdb = calloc(1, sizeof(struct vdb))) == NULL) {
+        return (NULL);
     }
 
-    path = bdb_path( VDBDIR, rcpt );
+    path = bdb_path(VDBDIR, rcpt);
 
-    if (( rc = db_create( &vdb->dbp, NULL, 0 )) != 0) {
-        syslog( LOG_ALERT,  "bdb: db_create: %s", db_strerror(rc));
+    if ((rc = db_create(&vdb->dbp, NULL, 0)) != 0) {
+        syslog(LOG_ALERT, "bdb: db_create: %s", db_strerror(rc));
         goto error;
     }
 
-    vdb->dbp->set_errpfx( vdb->dbp, "DB creation");
-    vdb->dbp->set_errcall( vdb->dbp, bdb_err_log);
-    if ((rc = vdb->dbp->set_pagesize( vdb->dbp, 1024)) != 0) {
-	vdb->dbp->err(vdb->dbp, rc, "set_pagesize");
+    vdb->dbp->set_errpfx(vdb->dbp, "DB creation");
+    vdb->dbp->set_errcall(vdb->dbp, bdb_err_log);
+    if ((rc = vdb->dbp->set_pagesize(vdb->dbp, 1024)) != 0) {
+        vdb->dbp->err(vdb->dbp, rc, "set_pagesize");
         goto error;
     }
-    if ((rc = vdb->dbp->set_cachesize( vdb->dbp, 0, 32 * 1024, 0)) != 0) {
-	vdb->dbp->err( vdb->dbp, rc, "set_cachesize");
+    if ((rc = vdb->dbp->set_cachesize(vdb->dbp, 0, 32 * 1024, 0)) != 0) {
+        vdb->dbp->err(vdb->dbp, rc, "set_cachesize");
         goto error;
     }
 
-    if ((rc = vdb->dbp->open(
-            vdb->dbp,       /* DB handle */
-	    NULL,           /* transaction handle */
-	    path,           /* db file name */
-	    NULL,           /* database name */
-	    DB_BTREE,       /* DB type */
-	    DB_CREATE,      /* Create db if it doesn't exist */
-	    0664)) != 0) {
-	vdb->dbp->err(vdb->dbp, rc, "%s: open", path);
-	syslog( LOG_ALERT, "bdb: %s: %s\n", path, strerror( errno ));
+    if ((rc = vdb->dbp->open(vdb->dbp, /* DB handle */
+                 NULL,                 /* transaction handle */
+                 path,                 /* db file name */
+                 NULL,                 /* database name */
+                 DB_BTREE,             /* DB type */
+                 DB_CREATE,            /* Create db if it doesn't exist */
+                 0664)) != 0) {
+        vdb->dbp->err(vdb->dbp, rc, "%s: open", path);
+        syslog(LOG_ALERT, "bdb: %s: %s\n", path, strerror(errno));
         goto error;
     }
-    vdb->dbp->set_errpfx( vdb->dbp, "");
+    vdb->dbp->set_errpfx(vdb->dbp, "");
 
-    return( vdb );
+    return (vdb);
 
 error:
-    free( vdb );
-    return( NULL );
+    free(vdb);
+    return (NULL);
 }
 
-    void
-vdb_close( struct vdb *vdb )
-{
-    if ( vdb ) {
-        if ( vdb->dbp ) {
-            (void)vdb->dbp->close( vdb->dbp, 0);
+void
+vdb_close(struct vdb *vdb) {
+    if (vdb) {
+        if (vdb->dbp) {
+            (void)vdb->dbp->close(vdb->dbp, 0);
         }
-        free( vdb );
+        free(vdb);
     }
 }
 
-    int
-vdb_recent( struct vdb *vdb, char *from )
-{
-    DBT		key;
-    DBT		data;
-    time_t	then;
-    time_t	next;
-    int		rc;
+int
+vdb_recent(struct vdb *vdb, char *from) {
+    DBT    key;
+    DBT    data;
+    time_t then;
+    time_t next;
+    int    rc;
 
     /* get interval time */
-    memset (&key, 0, sizeof( key ));
+    memset(&key, 0, sizeof(key));
     key.data = VIT;
     key.size = strlen(VIT) - 1;
 
-    memset (&data, 0, sizeof( data ));
+    memset(&data, 0, sizeof(data));
 
     data.data = &next;
-    data.size = sizeof( next );
+    data.size = sizeof(next);
 
-    next = 0;   /* for debugging */
+    next = 0; /* for debugging */
     vdb->dbp->set_errpfx(vdb->dbp, "Getting VIT");
     if ((rc = vdb->dbp->get(vdb->dbp, NULL, &key, &data, 0)) == 0) {
-	memcpy (&next, data.data, sizeof( next ));
+        memcpy(&next, data.data, sizeof(next));
     } else {
-	next = SECSPERDAY * DAYSPERWEEK;
+        next = SECSPERDAY * DAYSPERWEEK;
     }
 
     /* get record for this email address */
-    memset (&key, 0, sizeof( key ));
+    memset(&key, 0, sizeof(key));
     key.data = from;
-    key.size = strlen( from );
+    key.size = strlen(from);
 
-    memset (&data, 0, sizeof( data ));
-    then = 0;   /* for debugging */
+    memset(&data, 0, sizeof(data));
+    then = 0; /* for debugging */
     vdb->dbp->set_errpfx(vdb->dbp, "Getting recent time");
     if ((rc = vdb->dbp->get(vdb->dbp, NULL, &key, &data, 0)) == 0) {
-	memcpy (&then, data.data, sizeof( then ));
+        memcpy(&then, data.data, sizeof(then));
 
-	if ( next == LONG_MAX || then + next > time(( time_t *) NULL ))
-	    return( 1 );
+        if (next == LONG_MAX || then + next > time((time_t *)NULL))
+            return (1);
     }
-    return( 0 );
+    return (0);
 }
 
-   int
-vdb_store_interval( struct vdb *vdb, time_t interval )
-{
-    DBT  key;
-    DBT  data;
-    int  rc;
+int
+vdb_store_interval(struct vdb *vdb, time_t interval) {
+    DBT key;
+    DBT data;
+    int rc;
 
-    memset (&key, 0, sizeof ( key ));
+    memset(&key, 0, sizeof(key));
     key.data = VIT;
-    key.size = strlen( VIT ) - 1;
-    memset (&data, 0, sizeof ( data ));
-    data.data = (char *) &interval;
-    data.size = sizeof( interval );
-    rc = vdb->dbp->put(vdb->dbp, NULL, &key, &data, (u_int32_t) 0); /* allow overwrites */
+    key.size = strlen(VIT) - 1;
+    memset(&data, 0, sizeof(data));
+    data.data = (char *)&interval;
+    data.size = sizeof(interval);
+    rc = vdb->dbp->put(
+            vdb->dbp, NULL, &key, &data, (u_int32_t)0); /* allow overwrites */
     if (rc != 0) {
-	syslog( LOG_ALERT, "bdb: error while putting interval: %d, %s",
-		rc, db_strerror(rc) );
+        syslog(LOG_ALERT, "bdb: error while putting interval: %d, %s", rc,
+                db_strerror(rc));
     }
     return (rc);
 }
 
-    int
-vdb_store_reply( struct vdb *vdb, char *from )
-{
-    DBT  key;
-    DBT  data;
-    int  rc;
+int
+vdb_store_reply(struct vdb *vdb, char *from) {
+    DBT key;
+    DBT data;
+    int rc;
 
     time_t now;
 
-    memset (&key, 0, sizeof ( key ));
+    memset(&key, 0, sizeof(key));
     key.data = from;
-    key.size = strlen( from );
-    (void) time( &now );
-    memset (&data, 0, sizeof ( data ));
-    data.data = (char *) &now;
-    data.size = sizeof( now );
-    rc = vdb->dbp->put(vdb->dbp, NULL, &key, &data, 0);  /* allow overwrites */
+    key.size = strlen(from);
+    (void)time(&now);
+    memset(&data, 0, sizeof(data));
+    data.data = (char *)&now;
+    data.size = sizeof(now);
+    rc = vdb->dbp->put(vdb->dbp, NULL, &key, &data, 0); /* allow overwrites */
     if (rc != 0) {
-	syslog( LOG_ALERT, "bdb: error while putting reply time: %d, %s",
-		rc, db_strerror(rc) );
+        syslog(LOG_ALERT, "bdb: error while putting reply time: %d, %s", rc,
+                db_strerror(rc));
     }
 
     return (rc);
 }
 
-    struct name_list *
-vdb_get_names( struct vdb *vdb )
-{
-    char                cur_path[ MAXPATHLEN ];
-    char                cur_char;
-    char                *vdbdir = VDBDIR;
-    char                buf[ MAXPATHLEN ];
-    DIR                 *dirp;
-    struct dirent       *cur_entry;
-    int                 len;
-    struct name_list    *names;
-    struct name_list    *cur_name;
+struct name_list *
+vdb_get_names(struct vdb *vdb) {
+    char              cur_path[ MAXPATHLEN ];
+    char              cur_char;
+    char *            vdbdir = VDBDIR;
+    char              buf[ MAXPATHLEN ];
+    DIR *             dirp;
+    struct dirent *   cur_entry;
+    int               len;
+    struct name_list *names;
+    struct name_list *cur_name;
 
-    if ( access( vdbdir, F_OK )) {
-        syslog( LOG_ALERT, "vdb_get_names: cannot open %s", vdbdir );
+    if (access(vdbdir, F_OK)) {
+        syslog(LOG_ALERT, "vdb_get_names: cannot open %s", vdbdir);
         return NULL;
     }
 
-    names = malloc( sizeof( struct name_list ));
-    memset( names, 0, sizeof( struct name_list ));
+    names = malloc(sizeof(struct name_list));
+    memset(names, 0, sizeof(struct name_list));
     cur_name = names;
 
-    for ( cur_char = 'a'; cur_char <= 'z'; cur_char++ ) {
-        sprintf( cur_path, "%s/%c", vdbdir, cur_char );
-        if (( dirp = opendir( cur_path )) == NULL ) {
-            syslog( LOG_ALERT, "vdb_get_names: cannot open %s", cur_path );
+    for (cur_char = 'a'; cur_char <= 'z'; cur_char++) {
+        sprintf(cur_path, "%s/%c", vdbdir, cur_char);
+        if ((dirp = opendir(cur_path)) == NULL) {
+            syslog(LOG_ALERT, "vdb_get_names: cannot open %s", cur_path);
             continue;
         }
 
-        while (( cur_entry = readdir( dirp )) != NULL ) {
-            len = strlen( cur_entry->d_name );
-            if ( len < 5 ||
-                    strncmp( &cur_entry->d_name[ len - 4 ], ".ddb", 4 ) != 0 ) {
+        while ((cur_entry = readdir(dirp)) != NULL) {
+            len = strlen(cur_entry->d_name);
+            if (len < 5 ||
+                    strncmp(&cur_entry->d_name[ len - 4 ], ".ddb", 4) != 0) {
                 continue;
             }
 
-            if ( cur_name->name ) {
-                cur_name->next = malloc( sizeof( struct name_list ));
+            if (cur_name->name) {
+                cur_name->next = malloc(sizeof(struct name_list));
                 cur_name = cur_name->next;
                 cur_name->next = NULL;
             }
-            strncpy( buf, cur_entry->d_name, len - 4 );
+            strncpy(buf, cur_entry->d_name, len - 4);
             buf[ len - 4 ] = '\0';
-            cur_name->name = strdup( buf );
+            cur_name->name = strdup(buf);
         }
     }
 
-    if ( cur_name->name ) {
+    if (cur_name->name) {
         return names;
     }
 
     return NULL;
 }
 
-    void
-vdb_clean( struct vdb *vdb, char *user )
-{
-    char *fname = bdb_path( VDBDIR, user );
-    if ( unlink( fname ) < 0 ) {
-        syslog( LOG_ALERT, "vdb_clean: cannot remove %s: %m", fname );
+void
+vdb_clean(struct vdb *vdb, char *user) {
+    char *fname = bdb_path(VDBDIR, user);
+    if (unlink(fname) < 0) {
+        syslog(LOG_ALERT, "vdb_clean: cannot remove %s: %m", fname);
     }
 }
 
-    void
-vdb_gc( struct vdb *vdb )
-{
+void
+vdb_gc(struct vdb *vdb) {
     return;
 }
 
-    char *
-bdb_path( char *dir, char *user )
-{
-    char	buf[ MAXPATHLEN ];
+char *
+bdb_path(char *dir, char *user) {
+    char buf[ MAXPATHLEN ];
 
-    if (( user == NULL ) || ( dir == NULL )) {
-	return( NULL );
+    if ((user == NULL) || (dir == NULL)) {
+        return (NULL);
     }
 
-    if ( (strlen(dir) + strlen (user) + 4) > sizeof (buf) ) {
-	return( NULL );
+    if ((strlen(dir) + strlen(user) + 4) > sizeof(buf)) {
+        return (NULL);
     }
 
-    sprintf( buf, "%s/%c/%s.ddb", dir, user[0], user );
-    return( strdup( buf ));
+    sprintf(buf, "%s/%c/%s.ddb", dir, user[ 0 ], user);
+    return (strdup(buf));
 }
 
-    void
-bdb_err_log ( const DB_ENV * dbenv, const char *errpfx, const char *msg )
-{
-    syslog( LOG_ALERT, "bdb: %s: %s", errpfx, msg);
+void
+bdb_err_log(const DB_ENV *dbenv, const char *errpfx, const char *msg) {
+    syslog(LOG_ALERT, "bdb: %s: %s", errpfx, msg);
     return;
 }

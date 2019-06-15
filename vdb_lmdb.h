@@ -4,13 +4,13 @@
 #include <lmdb.h>
 
 #ifndef VDBDIR
-#define VDBDIR  "/var/lib/simvacation"   /* dir for vacation database */
+#define VDBDIR "/var/lib/simvacation" /* dir for vacation database */
 #endif
 
 struct vdb {
     MDB_env *dbenv;
-    char    *rcpt;
-    time_t  interval;
+    char *   rcpt;
+    time_t   interval;
 };
 
 #include "vdb.h"

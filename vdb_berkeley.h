@@ -1,17 +1,17 @@
 #ifndef BACKEND_BDB_H
 #define BACKEND_BDB_H
 
-#define DB_DBM_HSEARCH    1
+#define DB_DBM_HSEARCH 1
 #include <db.h>
 
-#define VIT     "__VACATION__INTERVAL__TIMER__"
+#define VIT "__VACATION__INTERVAL__TIMER__"
 
 #ifndef VDBDIR
-#define VDBDIR  "/var/lib/simvacation"   /* dir for vacation databases */
+#define VDBDIR "/var/lib/simvacation" /* dir for vacation databases */
 #endif
 
 struct vdb {
-    DB  *dbp;
+    DB *  dbp;
     char *path;
 };
 

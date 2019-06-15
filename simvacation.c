@@ -30,15 +30,15 @@
  */
 
 
-#include <limits.h>
-#include <sysexits.h>
-#include <time.h>
-#include <syslog.h>
 #include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sysexits.h>
+#include <syslog.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <ucl.h>
@@ -57,15 +57,15 @@
  *	vacation" loops.
  */
 
-int     check_from();
-void    myexit( int );
-int     nsearch( char *, char * );
-int     pexecv( char *path, char ** );
-void    readheaders();
-yastr   append_header( yastr, char *, int );
-int     check_header( char *, const char * );
-int     sendmessage( char *, char * );
-void    usage( char * );
+int   check_from();
+void  myexit(int);
+int   nsearch(char *, char *);
+int   pexecv(char *path, char **);
+void  readheaders();
+yastr append_header(yastr, char *, int);
+int   check_header(char *, const char *);
+int   sendmessage(char *, char *);
+void  usage(char *);
 
 
 /* RFC 2822 2.1.1
@@ -74,146 +74,144 @@ void    usage( char * );
  *  998 characters, and SHOULD be no more than 78 characters, excluding
  *  the CRLF.
  */
-#define	MAXLINE	1000
+#define MAXLINE 1000
 #define PRETTYLINE 80
 
-struct name_list  *names;
-struct headers  *h;
-static char     from[MAXLINE];
-yastr           canon_from;
+struct name_list *names;
+struct headers *  h;
+static char       from[ MAXLINE ];
+yastr             canon_from;
 
-char            *rcpt;
-struct vdb      *vdb;
-struct vlu      *vlu;
+char *      rcpt;
+struct vdb *vdb;
+struct vlu *vlu;
 
-extern int optind, opterr;
+extern int   optind, opterr;
 extern char *optarg;
 
 int debug;
 
 
-    int
-main( int argc, char **argv )
-{
+int
+main(int argc, char **argv) {
     debug = 0;
-    time_t              interval;
-    int                 ch, rc;
-    char                *vacmsg;
-    char                *progname;
-    char                *config_file = CONFFILE;
-    ucl_object_t        *config;
+    time_t        interval;
+    int           ch, rc;
+    char *        vacmsg;
+    char *        progname;
+    char *        config_file = CONFFILE;
+    ucl_object_t *config;
 
-    if ( (progname = strrchr( argv[0], '/' )) == NULL )
-	progname = strdup( argv[0] );
+    if ((progname = strrchr(argv[ 0 ], '/')) == NULL)
+        progname = strdup(argv[ 0 ]);
     else
-	progname = strdup( progname + 1 );
+        progname = strdup(progname + 1);
 
-    openlog( progname, LOG_PID, LOG_VACATION );
+    openlog(progname, LOG_PID, LOG_VACATION);
     opterr = 0;
     interval = -1;
 
-    h = malloc( sizeof( struct headers ));
-    memset( h, 0, sizeof( struct headers ));
+    h = malloc(sizeof(struct headers));
+    memset(h, 0, sizeof(struct headers));
 
-    from[0] = '\0';
+    from[ 0 ] = '\0';
 
-    while (( ch = getopt( argc, argv, "c:df:r:" )) != EOF ) {
-	switch( (char) ch ) {
+    while ((ch = getopt(argc, argv, "c:df:r:")) != EOF) {
+        switch ((char)ch) {
         case 'c':
             config_file = optarg;
             break;
         case 'd':
             debug = 1;
             break;
-	case 'f':
-	    strncpy(from, optarg, MAXLINE - 1);
-	    from[MAXLINE - 1] = '\0';
-	    break;
-	case 'r':
-	    if ( isdigit( *optarg )) {
-		interval = atol( optarg ) * SECSPERDAY;
-		if ( interval < 0 ) {
-		    usage( progname );
+        case 'f':
+            strncpy(from, optarg, MAXLINE - 1);
+            from[ MAXLINE - 1 ] = '\0';
+            break;
+        case 'r':
+            if (isdigit(*optarg)) {
+                interval = atol(optarg) * SECSPERDAY;
+                if (interval < 0) {
+                    usage(progname);
                 }
-	    } else {
-                usage( progname );
+            } else {
+                usage(progname);
             }
-	    break;
+            break;
 
-	    case '?':
-	    default:
-		usage( progname );
-	}
+        case '?':
+        default:
+            usage(progname);
+        }
     }
     argc -= optind;
     argv += optind;
 
-    if ( !*argv ) {
-	usage( progname );
-	myexit( EX_USAGE );
+    if (!*argv) {
+        usage(progname);
+        myexit(EX_USAGE);
     }
 
-    if ( debug ) {
-        openlog( progname, LOG_NOWAIT | LOG_PERROR | LOG_PID, LOG_VACATION );
+    if (debug) {
+        openlog(progname, LOG_NOWAIT | LOG_PERROR | LOG_PID, LOG_VACATION);
     }
 
     rcpt = *argv;
 
-    if (( config = vacation_config( config_file )) == NULL ) {
-        myexit( EX_TEMPFAIL );
+    if ((config = vacation_config(config_file)) == NULL) {
+        myexit(EX_TEMPFAIL);
     }
 
-    if (( vlu = vlu_init( config )) == NULL ) {
-        myexit( EX_TEMPFAIL );
+    if ((vlu = vlu_init(config)) == NULL) {
+        myexit(EX_TEMPFAIL);
     }
 
-    if ( vlu_connect( vlu ) != 0 ) {
-        myexit( EX_TEMPFAIL );
+    if (vlu_connect(vlu) != 0) {
+        myexit(EX_TEMPFAIL);
     }
 
-    if (( rc = vlu_search( vlu, rcpt )) != VLU_RESULT_OK ) {
-        switch ( rc ) {
+    if ((rc = vlu_search(vlu, rcpt)) != VLU_RESULT_OK) {
+        switch (rc) {
         case VLU_RESULT_PERMFAIL:
             /* We're done processing this message. */
-            myexit( EX_OK );
+            myexit(EX_OK);
 
         case VLU_RESULT_TEMPFAIL:
         default:
-            myexit( EX_TEMPFAIL );
+            myexit(EX_TEMPFAIL);
         }
-        myexit( rc );
+        myexit(rc);
     }
 
-    if (( vdb = vdb_init( config, rcpt )) == NULL ) {
-        myexit( EX_OK );
+    if ((vdb = vdb_init(config, rcpt)) == NULL) {
+        myexit(EX_OK);
     }
 
     if (interval != -1) {
-	vdb_store_interval( vdb, interval );
+        vdb_store_interval(vdb, interval);
     }
 
-    names = vlu_aliases( vlu, rcpt );
+    names = vlu_aliases(vlu, rcpt);
 
     readheaders();
 
-    if ( !vdb_recent( vdb, canon_from )) {
-	char rcptstr[MAXLINE];
-        if (( vacmsg = vlu_message( vlu, rcpt )) == NULL ) {
+    if (!vdb_recent(vdb, canon_from)) {
+        char rcptstr[ MAXLINE ];
+        if ((vacmsg = vlu_message(vlu, rcpt)) == NULL) {
             vacmsg = "I am currently out of email contact.\n"
-                    "Your mail will be read when I return.";
+                     "Your mail will be read when I return.";
         }
 
-	vdb_store_reply( vdb, canon_from );
-	sprintf(rcptstr, "%s@%s", rcpt, DOMAIN);
-	sendmessage( rcptstr, vacmsg );
-	syslog( LOG_DEBUG, "mail: sent message for %s to %s from %s",
-			rcpt, from, rcptstr );
+        vdb_store_reply(vdb, canon_from);
+        sprintf(rcptstr, "%s@%s", rcpt, DOMAIN);
+        sendmessage(rcptstr, vacmsg);
+        syslog(LOG_DEBUG, "mail: sent message for %s to %s from %s", rcpt, from,
+                rcptstr);
     } else {
-	syslog( LOG_DEBUG, "mail: suppressed message for %s to %s",
-		rcpt, from );
+        syslog(LOG_DEBUG, "mail: suppressed message for %s to %s", rcpt, from);
     }
 
-    myexit( EX_OK );
+    myexit(EX_OK);
 
     /* This doesn't do anything, but it makes the compiler happy. */
     return EX_OK;
@@ -223,40 +221,37 @@ main( int argc, char **argv )
  * readheaders --
  *	read mail headers
  */
-    void
-readheaders( )
-{
+void
+readheaders() {
     struct name_list *cur;
-    char *p;
-    int tome, state, stripfield = 0;
-    char buf[MAXLINE];
-    yastr *current_hdr = NULL;
+    char *            p;
+    int               tome, state, stripfield = 0;
+    char              buf[ MAXLINE ];
+    yastr *           current_hdr = NULL;
 
     state = HEADER_UNKNOWN;
     tome = 0;
-    while ( fgets( buf, sizeof( buf ), stdin ) && *buf != '\n' ) {
-        if ( strncasecmp( buf, "From ", 5 ) == 0 ) {
+    while (fgets(buf, sizeof(buf), stdin) && *buf != '\n') {
+        if (strncasecmp(buf, "From ", 5) == 0) {
             state = HEADER_UNKNOWN;
             /* FIXME: What is this looking at? */
-	    for ( p = buf + 5; *p && *p != ' '; ++p )
+            for (p = buf + 5; *p && *p != ' '; ++p)
                 ;
             *p = '\0';
-            strncpy( from, buf + 5, MAXLINE - 1 );
-            from[MAXLINE - 1] = '\0';
-            if (( p = index( from, '\n' )))
+            strncpy(from, buf + 5, MAXLINE - 1);
+            from[ MAXLINE - 1 ] = '\0';
+            if ((p = index(from, '\n')))
                 *p = '\0';
         }
-        if ( check_header( buf, "Message-ID:" ) == 0 ) {
+        if (check_header(buf, "Message-ID:") == 0) {
             state = HEADER_APPEND;
             stripfield = 1;
             current_hdr = &h->messageid;
-        }
-        else if ( check_header( buf, "References:" ) == 0 ) {
+        } else if (check_header(buf, "References:") == 0) {
             state = HEADER_APPEND;
             stripfield = 1;
             current_hdr = &h->references;
-        }
-        else if ( check_header( buf, "In-Reply-To:" ) == 0 ) {
+        } else if (check_header(buf, "In-Reply-To:") == 0) {
             state = HEADER_APPEND;
             stripfield = 1;
             current_hdr = &h->inreplyto;
@@ -266,16 +261,17 @@ readheaders( )
          *  message which contains an Auto-Submitted header field (see below),
          *  where that field has any value other than "no"
          */
-        else if ( check_header( buf, "Auto-Submitted:" ) == 0 ) {
+        else if (check_header(buf, "Auto-Submitted:") == 0) {
             state = HEADER_NOREPLY;
             p = buf + 15;
-            while ( *++p && isspace( *p ));
+            while (*++p && isspace(*p))
+                ;
             if (!*p) {
                 break;
             }
-            if ( strncasecmp( p, "no", 2 ) != 0 ) {
-                syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
-                myexit( EX_OK );
+            if (strncasecmp(p, "no", 2) != 0) {
+                syslog(LOG_DEBUG, "readheaders: suppressing message: %s", buf);
+                myexit(EX_OK);
             }
         }
         /* RFC 3834 2
@@ -283,16 +279,15 @@ readheaders( )
          *  which contains any header or content which makes it appear to the
          *  responder that a response would not be appropriate.
          */
-        else if ( check_header( buf, "List-" ) == 0 ) {
+        else if (check_header(buf, "List-") == 0) {
             /* RFC 3834 2
              *  For similar reasons, a responder MAY ignore any subject message
              *  with a List-* field [RFC2369].
              */
             state = HEADER_NOREPLY;
-            syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
-            myexit( EX_OK );
-        }
-        else if ( check_header( buf, "Precedence" ) == 0 ) {
+            syslog(LOG_DEBUG, "readheaders: suppressing message: %s", buf);
+            myexit(EX_OK);
+        } else if (check_header(buf, "Precedence") == 0) {
             /* RFC 3834 2
              *  For instance, if the subject message contained a
              *  Precedence header field [RFC2076] with a value of
@@ -306,21 +301,23 @@ readheaders( )
              *  Precedence is recommended by this specification.
              */
             state = HEADER_NOREPLY;
-	    if (( buf[10] == ':' || buf[10] == ' ' || buf[10] == '\t') &&
-                    ( p = index( buf, ':' ))) {
-                while ( *++p && isspace( *p ));
-                if ( !*p ) {
+            if ((buf[ 10 ] == ':' || buf[ 10 ] == ' ' || buf[ 10 ] == '\t') &&
+                    (p = index(buf, ':'))) {
+                while (*++p && isspace(*p))
+                    ;
+                if (!*p) {
                     break;
                 }
-                if ( strncasecmp( p, "junk", 4 ) == 0 ||
-                     strncasecmp( p, "bulk", 4 ) == 0 ||
-                     strncasecmp( p, "list", 4 ) == 0 ) {
-                    syslog( LOG_DEBUG, "readheaders: suppressing message: precedence %s", p );
-                    myexit( EX_OK );
+                if (strncasecmp(p, "junk", 4) == 0 ||
+                        strncasecmp(p, "bulk", 4) == 0 ||
+                        strncasecmp(p, "list", 4) == 0) {
+                    syslog(LOG_DEBUG,
+                            "readheaders: suppressing message: precedence %s",
+                            p);
+                    myexit(EX_OK);
                 }
             }
-        }
-        else if ( check_header( buf, "X-Auto-Response-Suppress:" ) == 0 ) {
+        } else if (check_header(buf, "X-Auto-Response-Suppress:") == 0) {
             /* MS-OXCMAIL 2.1.3.2.20
              *
              * X-Auto-Response-Suppress value   | Meaning
@@ -352,9 +349,9 @@ readheaders( )
              * The order of these values in the header is not important.
              */
             state = HEADER_NOREPLY;
-            if ( nsearch( "OOF", buf ) || nsearch( "All", buf )) {
-                syslog( LOG_DEBUG, "readheaders: suppressing message: %s", buf );
-                myexit( EX_OK );
+            if (nsearch("OOF", buf) || nsearch("All", buf)) {
+                syslog(LOG_DEBUG, "readheaders: suppressing message: %s", buf);
+                myexit(EX_OK);
             }
         }
         /* RFC 3834 2
@@ -365,18 +362,15 @@ readheaders( )
          *  a recipient (e.g., To, Cc, Bcc, Resent-To, Resent-Cc, or Resent-
          *  Bcc) field of the subject message.
          */
-        else if ( check_header( buf, "Cc:" ) == 0 ) {
+        else if (check_header(buf, "Cc:") == 0) {
             state = HEADER_RECIPIENT;
-        }
-        else if ( check_header( buf, "To:" ) == 0 ) {
+        } else if (check_header(buf, "To:") == 0) {
             state = HEADER_RECIPIENT;
-        }
-        else if ( check_header( buf, "Subject:" ) == 0 ) {
+        } else if (check_header(buf, "Subject:") == 0) {
             state = HEADER_APPEND;
             stripfield = 1;
             current_hdr = &h->subject;
-	}
-        else if ( !isspace( *buf )) {
+        } else if (!isspace(*buf)) {
             /* Not a continuation of the previous header line, reset flag
              *
              * RFC 2822 2.2.3
@@ -386,61 +380,64 @@ readheaders( )
             state = HEADER_UNKNOWN;
         }
 
-        switch ( state ) {
+        switch (state) {
         case HEADER_RECIPIENT:
-            if ( tome ) {
+            if (tome) {
                 break;
             }
-            for ( cur = names; !tome && cur; cur = cur->next ) {
-		tome += nsearch( cur->name, buf );
-	    }
+            for (cur = names; !tome && cur; cur = cur->next) {
+                tome += nsearch(cur->name, buf);
+            }
             break;
         case HEADER_APPEND:
-            *current_hdr = append_header( *current_hdr, buf, stripfield );
+            *current_hdr = append_header(*current_hdr, buf, stripfield);
             stripfield = 0;
 
             break;
-	}
+        }
     }
 
-    if ( !*from ) {
-        syslog( LOG_NOTICE, "readheaders: skipping message: unknown sender" );
-        myexit( EX_OK );
+    if (!*from) {
+        syslog(LOG_NOTICE, "readheaders: skipping message: unknown sender");
+        myexit(EX_OK);
     }
 
-    syslog( LOG_DEBUG, "readheaders: mail from %s", from );
+    syslog(LOG_DEBUG, "readheaders: mail from %s", from);
 
-    if ( !tome ) {
-	syslog( LOG_NOTICE, "readheaders: suppressing message: mail does not appear to be to user %s", vlu_name( vlu, rcpt ));
-	myexit( EX_OK );
+    if (!tome) {
+        syslog(LOG_NOTICE,
+                "readheaders: suppressing message: mail does not appear to be "
+                "to user %s",
+                vlu_name(vlu, rcpt));
+        myexit(EX_OK);
     }
 
-    if ( check_from()) {
-        syslog( LOG_NOTICE, "readheaders: suppressing message: bad sender %s", from );
-        myexit( EX_OK );
+    if (check_from()) {
+        syslog(LOG_NOTICE, "readheaders: suppressing message: bad sender %s",
+                from);
+        myexit(EX_OK);
     }
-
 }
 
-    int
-check_header( char *line, const char *field ) {
-    return strncasecmp( field, line, strlen( field ));
+int
+check_header(char *line, const char *field) {
+    return strncasecmp(field, line, strlen(field));
 }
 
-    yastr
-append_header( yastr str, char *value, int stripfield )
-{
-    if ( stripfield ) {
-        value = index( value, ':' );
-        while ( value && *++value && isspace( *value ));
+yastr
+append_header(yastr str, char *value, int stripfield) {
+    if (stripfield) {
+        value = index(value, ':');
+        while (value && *++value && isspace(*value))
+            ;
     }
 
-    if ( str == NULL ) {
+    if (str == NULL) {
         str = yaslempty();
     }
 
-    yastr s = yaslcat( str, value );
-    yasltrim( s, "\n" );
+    yastr s = yaslcat(str, value);
+    yasltrim(s, "\n");
     return s;
 }
 
@@ -449,27 +446,26 @@ append_header( yastr str, char *value, int stripfield )
  *	do a nice, slow, search of a string for a substring.
  *	(umich) - change any of {'.', '_'} to ' '.
  */
-    int
-nsearch( char *name, char *str )
-{
-    int len;
+int
+nsearch(char *name, char *str) {
+    int   len;
     char *c;
 
     /*
      * convert any periods or underscores to spaces
      */
-    for ( c = str; *c; c++ ) {
-	if (( *c == '.' ) || ( *c == '_' )) {
-	    *c = ' ';
-	}
+    for (c = str; *c; c++) {
+        if ((*c == '.') || (*c == '_')) {
+            *c = ' ';
+        }
     }
 
-    for ( len = strlen( name ); *str; ++str ) {
-	if ( !strncasecmp( name, str, len )) {
-	    return( 1 );
-	}
+    for (len = strlen(name); *str; ++str) {
+        if (!strncasecmp(name, str, len)) {
+            return (1);
+        }
     }
-    return( 0 );
+    return (0);
 }
 
 /* check_from
@@ -483,167 +479,162 @@ nsearch( char *name, char *str )
  *  used as return addresses by responders - e.g., those with local-
  *  parts matching "owner-*", "*-request", "MAILER-DAEMON", etc.
  */
-    int
-check_from()
-{
+int
+check_from() {
     static struct ignore {
-		char	*name;
-		int	len;
+        char *name;
+        int   len;
     } ignore[] = {
-		{ "-request", 8 },
-                { "postmaster", 10 },
-                { "uucp", 4 },
-		{ "mailer-daemon", 13 },
-                { "mailer", 6 },
-                { "-relay", 6 },
-		{ "<>", 2 },
-		{ NULL, 0 },
+            {"-request", 8},
+            {"postmaster", 10},
+            {"uucp", 4},
+            {"mailer-daemon", 13},
+            {"mailer", 6},
+            {"-relay", 6},
+            {"<>", 2},
+            {NULL, 0},
     };
     struct ignore *cur;
-    size_t len;
-    yastr a;
-    yastr buf;
-    char *p;
-    char *at;
-    char *sep;
+    size_t         len;
+    yastr          a;
+    yastr          buf;
+    char *         p;
+    char *         at;
+    char *         sep;
 
-    a = yaslauto( from );
+    a = yaslauto(from);
 
     /* Canonicalize SRS addresses. We don't need to verify hashes and timestamps
      * because this doesn't increase our risk of replying to a forged address.
      */
-    if ( *a == '"' ) {
+    if (*a == '"') {
         p = a + 1;
     } else {
         p = a;
     }
-    if (( strncasecmp( p, "SRS", 3 ) == 0 ) && ( yasllen( a ) > 13 ) &&
-        (( p[ 3 ] == '0' ) || ( p[ 3 ] == '1' )) &&
-        (( p[ 4 ] == '=' ) || ( p[ 4 ] == '-' ) ||
-        ( p[ 4 ] == '+' ))) {
+    if ((strncasecmp(p, "SRS", 3) == 0) && (yasllen(a) > 13) &&
+            ((p[ 3 ] == '0') || (p[ 3 ] == '1')) &&
+            ((p[ 4 ] == '=') || (p[ 4 ] == '-') || (p[ 4 ] == '+'))) {
 
-        if ( *a == '"' ) {
-            yaslrange( a, 1, -1 );
-            buf = yaslauto( "\"" );
+        if (*a == '"') {
+            yaslrange(a, 1, -1);
+            buf = yaslauto("\"");
         } else {
-            buf = yaslempty( );
+            buf = yaslempty();
         }
 
-        if ( a[ 3 ] == '1' ) {
-            yaslrange( a, 5, -1 );
-            if ((( p = strstr( a, "==" )) != NULL ) ||
-                (( p = strstr( a, "=-" )) != NULL ) ||
-                (( p = strstr( a, "=+" )) != NULL )) {
-                yaslrange( a, ( p - a ) + 2, -1 );
+        if (a[ 3 ] == '1') {
+            yaslrange(a, 5, -1);
+            if (((p = strstr(a, "==")) != NULL) ||
+                    ((p = strstr(a, "=-")) != NULL) ||
+                    ((p = strstr(a, "=+")) != NULL)) {
+                yaslrange(a, (p - a) + 2, -1);
             }
         } else {
-            yaslrange( a, 5, -1 );
+            yaslrange(a, 5, -1);
         }
 
         /* Skip the hash and timestamp */
-        if ( yasllen( a ) &&
-                (( p = strchr( a, '=' )) != NULL ) &&
-                (( p = strchr( p + 1, '=' )) != NULL )) {
-            yaslrange( a, ( p - a ) + 1, -1 );
+        if (yasllen(a) && ((p = strchr(a, '=')) != NULL) &&
+                ((p = strchr(p + 1, '=')) != NULL)) {
+            yaslrange(a, (p - a) + 1, -1);
         }
 
         /* a is now domain.tld=localpart@forwarder.tld
          * or the address is borked */
-        if ( yasllen( a ) && (( sep = strchr( a, '=' )) != NULL ) &&
-                (( at = strrchr( sep, '@' )) != NULL )) {
-            buf = yaslcatlen( buf, sep + 1, at - sep - 1 );
-            buf = yaslcat( buf, "@" );
-            buf = yaslcatlen( buf, a, sep - a );
+        if (yasllen(a) && ((sep = strchr(a, '=')) != NULL) &&
+                ((at = strrchr(sep, '@')) != NULL)) {
+            buf = yaslcatlen(buf, sep + 1, at - sep - 1);
+            buf = yaslcat(buf, "@");
+            buf = yaslcatlen(buf, a, sep - a);
         }
 
-        yaslfree( a );
+        yaslfree(a);
 
-        if ( yasllen( buf ) > 1 ) {
-            syslog( LOG_NOTICE, "check_from: corrected for SRS: %s", buf );
+        if (yasllen(buf) > 1) {
+            syslog(LOG_NOTICE, "check_from: corrected for SRS: %s", buf);
             a = buf;
         } else {
-            yaslfree( buf );
-            a = yaslauto( from );
+            yaslfree(buf);
+            a = yaslauto(from);
         }
     }
 
     /* Canonicalize BATV addresses */
-    if (( strncasecmp( a, "prvs=", 5 ) == 0 ) &&
-            (( p = strchr( a + 5, '=' )) != NULL )) {
-        yaslrange( a, p - a + 1, -1 );
-        syslog( LOG_NOTICE, "check_from: corrected for BATV: %s", a );
+    if ((strncasecmp(a, "prvs=", 5) == 0) &&
+            ((p = strchr(a + 5, '=')) != NULL)) {
+        yaslrange(a, p - a + 1, -1);
+        syslog(LOG_NOTICE, "check_from: corrected for BATV: %s", a);
     }
 
     /* Canonicalize bastardized BATV addresses */
-    if (( strncasecmp( a, "btv1==", 6 ) == 0 ) &&
-            (( p = strstr( a + 6, "==" )) != NULL )) {
-        yaslrange( a, p - a + 2, -1 );
-        syslog( LOG_NOTICE, "check_from: corrected for Barracuda: %s", a);
+    if ((strncasecmp(a, "btv1==", 6) == 0) &&
+            ((p = strstr(a + 6, "==")) != NULL)) {
+        yaslrange(a, p - a + 2, -1);
+        syslog(LOG_NOTICE, "check_from: corrected for Barracuda: %s", a);
     }
 
     /* Save canonical address */
-    canon_from = yasldup( a );
+    canon_from = yasldup(a);
 
     /* Chop off the domain */
-    if (( p = strrchr( a, '@' )) != NULL ) {
-        yaslrange( a, 0, p - a - 1 );
+    if ((p = strrchr(a, '@')) != NULL) {
+        yaslrange(a, 0, p - a - 1);
     }
 
-    yasltrim( a, "\"" );
-    yasltolower( a );
-    len = yasllen( a );
+    yasltrim(a, "\"");
+    yasltolower(a);
+    len = yasllen(a);
     p = a + len;
 
-    for ( cur = ignore; cur->name; cur++ ) {
+    for (cur = ignore; cur->name; cur++) {
         /* This is a bit convoluted because we're matching the end of
          * the string.
          */
-	if ( len >= cur->len &&
-		memcmp( cur->name, p - cur->len, cur->len ) == 0 ) {
-            yaslfree( a );
-	    return( 1 );
+        if (len >= cur->len && memcmp(cur->name, p - cur->len, cur->len) == 0) {
+            yaslfree(a);
+            return (1);
         }
     }
 
-    yaslfree( a );
-    return( 0 );
+    yaslfree(a);
+    return (0);
 }
 
 /*
  * sendmessage --
  *	exec sendmail to send the vacation file to sender
  */
-    int
-sendmessage( char *myname, char *vmsg )
-{
-    char        hostname[ 255 ];
-    char	*nargv[5];
+int
+sendmessage(char *myname, char *vmsg) {
+    char  hostname[ 255 ];
+    char *nargv[ 5 ];
 
 #ifdef HAVE_SENDMAIL
-    nargv[0] = "sendmail";
-    nargv[1] = "-f<>";
-    nargv[2] = from;
-    nargv[3] = NULL;
+    nargv[ 0 ] = "sendmail";
+    nargv[ 1 ] = "-f<>";
+    nargv[ 2 ] = from;
+    nargv[ 3 ] = NULL;
 #else
-    nargv[0] = "simsendmail";   /* really simsendmail */
-    nargv[1] = "-f";
-    nargv[2] = "";
-    nargv[3] = from;
-    nargv[4] = NULL;
+    nargv[ 0 ] = "simsendmail"; /* really simsendmail */
+    nargv[ 1 ] = "-f";
+    nargv[ 2 ] = "";
+    nargv[ 3 ] = from;
+    nargv[ 4 ] = NULL;
 #endif
 
-    if (( pexecv( _PATH_SENDMAIL, nargv )) == -1 ) {
-	syslog( LOG_ERR, "mail: pexecv of %s failed", _PATH_SENDMAIL );
-	return( EX_TEMPFAIL );
+    if ((pexecv(_PATH_SENDMAIL, nargv)) == -1) {
+        syslog(LOG_ERR, "mail: pexecv of %s failed", _PATH_SENDMAIL);
+        return (EX_TEMPFAIL);
     }
     /*
      * Our stdout should now be hooked up to sendmail's stdin.
      * Generate headers and print the vacation message.
      */
 
-    gethostname( hostname, 255 );
-    printf( "Message-ID: <%llx_%x@%s>\n", (unsigned long long)time( NULL ),
-            getpid( ), hostname );
+    gethostname(hostname, 255);
+    printf("Message-ID: <%llx_%x@%s>\n", (unsigned long long)time(NULL),
+            getpid(), hostname);
 
     /* RFC 3834 3.1.1
      *  For responses sent by Personal Responders, the From field SHOULD
@@ -654,7 +645,7 @@ sendmessage( char *myname, char *vmsg )
      *  address that was used to send the subject message to that
      *  recipient.
      */
-    printf( "From: %s <%s>\n", vlu_display_name( vlu, rcpt ), myname );
+    printf("From: %s <%s>\n", vlu_display_name(vlu, rcpt), myname);
 
     /* RFC 3834 3.1.3
      *  The To header field SHOULD indicate the recipient of the response.
@@ -662,7 +653,7 @@ sendmessage( char *myname, char *vmsg )
      *  response.  This minimizes the potential for sorcerer's apprentice
      *  mode and denial-of-service attacks.
      */
-    printf( "To: %s\n", canon_from );
+    printf("To: %s\n", canon_from);
 
     /* RFC 3834 3.1.5
      *  The Subject field SHOULD contain a brief indication that the message
@@ -671,15 +662,15 @@ sendmessage( char *myname, char *vmsg )
      *  MAY be used as such an indication.  If used, this prefix SHOULD be
      *  followed by an ASCII SPACE character (0x20).
      */
-    printf( "Subject: %s", SUBJECTPREFIX );
-    if ( yasllen( h->subject ) > 0 ) {
-	if ( check_header( h->subject, "Re:" ) != 0 ) {
-	    printf( " (Re: %s)", h->subject );
-	} else {
-	    printf( " (%s)", h->subject );
-	}
+    printf("Subject: %s", SUBJECTPREFIX);
+    if (yasllen(h->subject) > 0) {
+        if (check_header(h->subject, "Re:") != 0) {
+            printf(" (Re: %s)", h->subject);
+        } else {
+            printf(" (%s)", h->subject);
+        }
     }
-    printf( "\n" );
+    printf("\n");
 
     /* RFC 3834 3.1.6
      *  The In-Reply-To and References fields SHOULD be provided in the
@@ -687,7 +678,7 @@ sendmessage( char *myname, char *vmsg )
      *  subject message, according to the rules in [RFC2822] section
      *  3.6.4.
      */
-    if ( yasllen( h->messageid ) > 0 ) {
+    if (yasllen(h->messageid) > 0) {
         /* RFC 2822 3.6.4
          *  The "In-Reply-To:" field will contain the contents of the
          *  "Message-ID:" field of the message to which this one is a reply
@@ -695,7 +686,7 @@ sendmessage( char *myname, char *vmsg )
          *  in any of the parent messages, then the new message will have no
          *  "In-Reply-To:" field.
          */
-        printf( "In-Reply-To: %s\n", h->messageid );
+        printf("In-Reply-To: %s\n", h->messageid);
     }
 
     /* RFC 2822 3.6.4
@@ -708,49 +699,45 @@ sendmessage( char *myname, char *vmsg )
      *  "In-Reply-To:" field followed by the contents of the parent's
      *  "Message-ID:" field (if any).
      */
-    if ( yasllen( h->references ) > 0 ) {
-        printf( "References: %s %s\n", h->references, h->messageid );
-    }
-    else if ( yasllen( h->inreplyto ) > 0 ) {
-        printf( "References: %s %s\n", h->inreplyto, h->messageid );
-    }
-    else if ( yasllen( h->messageid ) > 0 ) {
-        printf( "References: %s\n", h->messageid );
+    if (yasllen(h->references) > 0) {
+        printf("References: %s %s\n", h->references, h->messageid);
+    } else if (yasllen(h->inreplyto) > 0) {
+        printf("References: %s %s\n", h->inreplyto, h->messageid);
+    } else if (yasllen(h->messageid) > 0) {
+        printf("References: %s\n", h->messageid);
     }
 
     /* RFC 3834 3.1.7
      *  The Auto-Submitted field, with a value of "auto-replied", SHOULD be
      *  included in the message header of any automatic response.
      */
-    printf( "Auto-Submitted: auto-replied\n" );
+    printf("Auto-Submitted: auto-replied\n");
 
-    printf( "MIME-Version: 1.0\n" );
-    printf( "Content-Type: text/plain; charset=UTF-8\n" );
+    printf("MIME-Version: 1.0\n");
+    printf("Content-Type: text/plain; charset=UTF-8\n");
 
     /* End of headers */
-    printf( "\n" );
+    printf("\n");
 
-    printf( "%s\n", vmsg );
+    printf("%s\n", vmsg);
 
-    return( 0 );
+    return (0);
 }
 
-    void
-usage( char * progname)
-{
+void
+usage(char *progname) {
     /* FIXME: wth? */
     syslog(LOG_NOTICE, "uid %u: usage: %s login\n", getuid(), progname);
-    myexit( 0 );
+    myexit(0);
 }
 
 
-    void
-myexit( int retval )
-{
-    vdb_close( vdb );
-    vlu_close( vlu );
+void
+myexit(int retval) {
+    vdb_close(vdb);
+    vlu_close(vlu);
 
-    exit( retval );
+    exit(retval);
 }
 
 
@@ -760,44 +747,43 @@ myexit( int retval )
  * Manipulates file descriptors 0, 1, and 2, such that the new child
  * is reading from the parent's output.
  */
-    int
-pexecv( char *path, char **argv )
-{
-    int		fd[ 2 ], c;
+int
+pexecv(char *path, char **argv) {
+    int fd[ 2 ], c;
 
-    if ( pipe( fd ) < 0 ) {
-	return( -1 );
+    if (pipe(fd) < 0) {
+        return (-1);
     }
 
-    switch ( c = vfork()) {
-    case -1 :
-	return( -1 );
-	/* NOTREACHED */
+    switch (c = vfork()) {
+    case -1:
+        return (-1);
+        /* NOTREACHED */
 
-    case 0 :
-	if ( close( fd[ 1 ] ) < 0 ) {
-	    return( -1 );
-	}
-	if ( dup2( fd[ 0 ], 0 ) < 0 ) {
-	    return( -1 );
-	}
-	if ( close( fd[ 0 ] ) < 0 ) {
-	    return( -1 );
-	}
-	execv( path, argv );
-	return( -1 );
-	/* NOTREACHED */
+    case 0:
+        if (close(fd[ 1 ]) < 0) {
+            return (-1);
+        }
+        if (dup2(fd[ 0 ], 0) < 0) {
+            return (-1);
+        }
+        if (close(fd[ 0 ]) < 0) {
+            return (-1);
+        }
+        execv(path, argv);
+        return (-1);
+        /* NOTREACHED */
 
-    default :
-	if ( close( fd[ 0 ] ) < 0 ) {
-	    return( -1 );
-	}
-	if ( dup2( fd[ 1 ], 1 ) < 0 ) {
-	    return( -1 );
-	}
-	if ( close( fd[ 1 ] ) < 0 ) {
-	    return( -1 );
-	}
-	return( c );
+    default:
+        if (close(fd[ 0 ]) < 0) {
+            return (-1);
+        }
+        if (dup2(fd[ 1 ], 1) < 0) {
+            return (-1);
+        }
+        if (close(fd[ 1 ]) < 0) {
+            return (-1);
+        }
+        return (c);
     }
 }

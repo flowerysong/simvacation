@@ -20,48 +20,48 @@
  * SOFTWARE.
  */
 
-#include <limits.h>
-#include <sysexits.h>
-#include <time.h>
-#include <syslog.h>
 #include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sysexits.h>
+#include <syslog.h>
+#include <time.h>
 
 #include "simvacation.h"
 #include "vlu_null.h"
 
-    struct vlu  *
-vlu_init( const ucl_object_t *config ) {
+struct vlu *
+vlu_init(const ucl_object_t *config) {
     struct vlu *vlu;
 
-    if (( vlu = malloc( sizeof( struct vlu ))) == NULL ) {
-        syslog( LOG_ERR, "vlu_init: malloc error: %m" );
+    if ((vlu = malloc(sizeof(struct vlu))) == NULL) {
+        syslog(LOG_ERR, "vlu_init: malloc error: %m");
         return NULL;
     }
-    memset( vlu, 0, sizeof( struct vlu ));
+    memset(vlu, 0, sizeof(struct vlu));
 
     return vlu;
 }
 
-    int
-vlu_connect( struct vlu *vlu ) {
-    return( 0 );
+int
+vlu_connect(struct vlu *vlu) {
+    return (0);
 }
 
-    int
-vlu_search( struct vlu *vlu, char *rcpt ) {
-    return( VLU_RESULT_OK );
+int
+vlu_search(struct vlu *vlu, char *rcpt) {
+    return (VLU_RESULT_OK);
 }
 
-    struct name_list *
-vlu_aliases( struct vlu *vlu, char *rcpt ) {
+struct name_list *
+vlu_aliases(struct vlu *vlu, char *rcpt) {
     struct name_list *result;
 
-    if (( result = malloc( sizeof( struct name_list ))) == NULL ) {
-        syslog( LOG_ALERT, "vlu_aliases: malloc for name_list failed");
+    if ((result = malloc(sizeof(struct name_list))) == NULL) {
+        syslog(LOG_ALERT, "vlu_aliases: malloc for name_list failed");
         return NULL;
     }
 
@@ -71,22 +71,20 @@ vlu_aliases( struct vlu *vlu, char *rcpt ) {
     return result;
 }
 
-    char *
-vlu_message( struct vlu *vlu, char *rcpt ) {
+char *
+vlu_message(struct vlu *vlu, char *rcpt) {
     return NULL;
 }
 
-    char *
-vlu_name( struct vlu *vlu, char *rcpt ) {
+char *
+vlu_name(struct vlu *vlu, char *rcpt) {
     return "ezekielh";
 }
 
-    char *
-vlu_display_name( struct vlu *vlu, char *rcpt ) {
+char *
+vlu_display_name(struct vlu *vlu, char *rcpt) {
     return "Ezekiel Hendrickson";
 }
 
-    void
-vlu_close ( struct vlu *vlu ) {
-
-}
+void
+vlu_close(struct vlu *vlu) {}

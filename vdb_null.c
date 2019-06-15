@@ -26,51 +26,43 @@
 #include "simvacation.h"
 #include "vdb_null.h"
 
-    struct vdb *
-vdb_init( ucl_object_t *config, char *rcpt )
-{
-    return( calloc( 1, 1 ));
+struct vdb *
+vdb_init(ucl_object_t *config, char *rcpt) {
+    return (calloc(1, 1));
 }
 
-    void
-vdb_close( struct vdb *vdb )
-{
-    free( vdb );
+void
+vdb_close(struct vdb *vdb) {
+    free(vdb);
     return;
 }
 
-    int
-vdb_recent( struct vdb *vdb, char *from )
-{
-    return( 0 );
+int
+vdb_recent(struct vdb *vdb, char *from) {
+    return (0);
 }
 
-   int
-vdb_store_interval( struct vdb *vdb, time_t interval )
-{
-    return( 0 );
+int
+vdb_store_interval(struct vdb *vdb, time_t interval) {
+    return (0);
 }
 
-    int
-vdb_store_reply( struct vdb *vdb, char *from )
-{
-    return( 0 );
+int
+vdb_store_reply(struct vdb *vdb, char *from) {
+    return (0);
 }
 
-    struct name_list *
-vdb_get_names( struct vdb *vdb )
-{
-    return( NULL );
+struct name_list *
+vdb_get_names(struct vdb *vdb) {
+    return (NULL);
 }
 
-    void
-vdb_clean( struct vdb *vdb, char *user )
-{
+void
+vdb_clean(struct vdb *vdb, char *user) {
     return;
 }
 
-    void
-vdb_gc( struct vdb *vdb )
-{
+void
+vdb_gc(struct vdb *vdb) {
     return;
 }

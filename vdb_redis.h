@@ -4,12 +4,12 @@
 #include <urcl.h>
 
 #ifndef VDBDIR
-#define VDBDIR  "127.0.0.1"
+#define VDBDIR "127.0.0.1"
 #endif
 
 struct vdb {
-    urclHandle  *u;
-    char        *rcpt;
+    urclHandle *u;
+    char *      rcpt;
     time_t      interval;
 };
 
