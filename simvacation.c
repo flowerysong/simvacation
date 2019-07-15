@@ -485,6 +485,7 @@ check_from() {
         char *name;
         int   len;
     } ignore[] = {
+            {"-errors", 7},
             {"-request", 8},
             {"postmaster", 10},
             {"uucp", 4},
