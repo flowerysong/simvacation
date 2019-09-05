@@ -1,32 +1,6 @@
 /*
- * Copyright (c) 2004, 2013-2016 Regents of The University of Michigan.
- * Copyright (c) 1983, 1987 Regents of the University of California.
- * Copyright (c) 1983 Eric P. Allman.
- * All Rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * * Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * * Neither the name of the University nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ * Copyright (c) Regents of The University of Michigan
+ * See COPYING.
  */
 
 
@@ -47,15 +21,6 @@
 #include "vdb.h"
 #include "vlu.h"
 #include "vutil.h"
-
-/*
- *  VACATION -- return a message to the sender when on vacation.
- *
- *	This program is invoked as a message receiver.  It returns a
- *	message specified by the user to whomever sent the mail, taking
- *	care not to return a message too often to prevent "I am on
- *	vacation" loops.
- */
 
 int   check_from();
 void  myexit(int);
@@ -82,9 +47,11 @@ struct headers *  h;
 static char       from[ MAXLINE ];
 yastr             canon_from;
 
-char *      rcpt;
-struct vdb *vdb;
-struct vlu *vlu;
+char *              rcpt;
+struct vdb_backend *vdb = NULL;
+VDB *               vdbh = NULL;
+struct vlu_backend *vlu = NULL;
+VLU *               vluh = NULL;
 
 extern int   optind, opterr;
 extern char *optarg;
@@ -99,7 +66,7 @@ main(int argc, char **argv) {
     int           ch, rc;
     char *        vacmsg;
     char *        progname;
-    char *        config_file = CONFFILE;
+    char *        config_file = NULL;
     ucl_object_t *config;
 
     if ((progname = strrchr(argv[ 0 ], '/')) == NULL)
@@ -162,15 +129,22 @@ main(int argc, char **argv) {
         myexit(EX_TEMPFAIL);
     }
 
-    if ((vlu = vlu_init(config)) == NULL) {
+    if ((vdb = vdb_backend(ucl_object_tostring(
+                 ucl_object_lookup_path(config, "core.vdb")))) == NULL) {
         myexit(EX_TEMPFAIL);
     }
 
-    if (vlu_connect(vlu) != 0) {
+    if ((vlu = vlu_backend(ucl_object_tostring(
+                 ucl_object_lookup_path(config, "core.vlu")))) == NULL) {
         myexit(EX_TEMPFAIL);
     }
 
-    if ((rc = vlu_search(vlu, rcpt)) != VLU_RESULT_OK) {
+
+    if ((vluh = vlu->init(config)) == NULL) {
+        myexit(EX_TEMPFAIL);
+    }
+
+    if ((rc = vlu->search(vluh, rcpt)) != VLU_RESULT_OK) {
         switch (rc) {
         case VLU_RESULT_PERMFAIL:
             /* We're done processing this message. */
@@ -183,26 +157,26 @@ main(int argc, char **argv) {
         myexit(rc);
     }
 
-    if ((vdb = vdb_init(config, rcpt)) == NULL) {
+    if ((vdbh = vdb->init(config, rcpt)) == NULL) {
         myexit(EX_OK);
     }
 
     if (interval != -1) {
-        vdb_store_interval(vdb, interval);
+        vdb->store_interval(vdbh, interval);
     }
 
-    names = vlu_aliases(vlu, rcpt);
+    names = vlu->aliases(vluh, rcpt);
 
     readheaders();
 
-    if (!vdb_recent(vdb, canon_from)) {
+    if (!vdb->recent(vdbh, canon_from)) {
         char rcptstr[ MAXLINE ];
-        if ((vacmsg = vlu_message(vlu, rcpt)) == NULL) {
+        if ((vacmsg = vlu->message(vluh, rcpt)) == NULL) {
             vacmsg = "I am currently out of email contact.\n"
                      "Your mail will be read when I return.";
         }
 
-        vdb_store_reply(vdb, canon_from);
+        vdb->store_reply(vdbh, canon_from);
         sprintf(rcptstr, "%s@%s", rcpt, DOMAIN);
         sendmessage(rcptstr, vacmsg);
         syslog(LOG_DEBUG, "mail: sent message for %s to %s from %s", rcpt, from,
@@ -217,10 +191,6 @@ main(int argc, char **argv) {
     return EX_OK;
 }
 
-/*
- * readheaders --
- *	read mail headers
- */
 void
 readheaders() {
     struct name_list *cur;
@@ -408,7 +378,7 @@ readheaders() {
         syslog(LOG_NOTICE,
                 "readheaders: suppressing message: mail does not appear to be "
                 "to user %s",
-                vlu_name(vlu, rcpt));
+                vlu->name(vluh, rcpt));
         myexit(EX_OK);
     }
 
@@ -602,10 +572,6 @@ check_from() {
     return (0);
 }
 
-/*
- * sendmessage --
- *	exec sendmail to send the vacation file to sender
- */
 int
 sendmessage(char *myname, char *vmsg) {
     char  hostname[ 255 ];
@@ -646,7 +612,7 @@ sendmessage(char *myname, char *vmsg) {
      *  address that was used to send the subject message to that
      *  recipient.
      */
-    printf("From: %s <%s>\n", vlu_display_name(vlu, rcpt), myname);
+    printf("From: %s <%s>\n", vlu->display_name(vluh, rcpt), myname);
 
     /* RFC 3834 3.1.3
      *  The To header field SHOULD indicate the recipient of the response.
@@ -727,16 +693,18 @@ sendmessage(char *myname, char *vmsg) {
 
 void
 usage(char *progname) {
-    /* FIXME: wth? */
-    syslog(LOG_NOTICE, "uid %u: usage: %s login\n", getuid(), progname);
+    syslog(LOG_NOTICE,
+            "usage: %s [-c conf_file] [-d] [-f from_address] [-r "
+            "refresh_interval]\n",
+            progname);
     myexit(0);
 }
 
 
 void
 myexit(int retval) {
-    vdb_close(vdb);
-    vlu_close(vlu);
+    vdb->close(vdbh);
+    vlu->close(vluh);
 
     exit(retval);
 }

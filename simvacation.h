@@ -9,10 +9,6 @@
 #define HEADER_APPEND 2
 #define HEADER_NOREPLY 3
 
-#ifndef CONFFILE
-#define CONFFILE "/etc/mail/simvacation.conf"
-#endif
-
 #ifndef _PATH_SENDMAIL
 #define _PATH_SENDMAIL "/usr/sbin/sendmail"
 #endif
@@ -33,9 +29,10 @@
 #define SECSPERDAY ((time_t)SECSPERHOUR * HOURSPERDAY)
 #define MONSPERYEAR 12
 
+/* FIXME: UCL list? */
 struct name_list {
     struct name_list *next;
-    char *            name;
+    yastr             name;
 };
 
 struct headers {

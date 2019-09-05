@@ -1,44 +1,50 @@
 /*
- * Copyright (c) 2016 Regents of The University of Michigan
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * Copyright (c) Regents of The University of Michigan
+ * See COPYING.
  */
 
 #include <syslog.h>
+#include <unistd.h>
 
+#include "embedded_config.h"
 #include "simvacation.h"
 #include "vutil.h"
 
 ucl_object_t *
-vacation_config(char *config_file) {
+vacation_config(const char *config_file) {
     struct ucl_parser *parser;
-    const char *       err;
+    ucl_object_t *     config;
 
-    parser = ucl_parser_new(UCL_PARSER_KEY_LOWERCASE);
+    parser = ucl_parser_new(
+            UCL_PARSER_KEY_LOWERCASE | UCL_PARSER_NO_IMPLICIT_ARRAYS);
+
+    if (!ucl_parser_add_string(parser, SIMVACATION_CONFIG_BASE, 0)) {
+        syslog(LOG_ERR, "vacation_config: base UCL parsing failed");
+        return NULL;
+    }
+
+    config = ucl_parser_get_object(parser);
+    ucl_parser_free(parser);
+
+    if (config_file == NULL) {
+        config_file = "/etc/mail/simvacation.conf";
+        if (access(config_file, F_OK) != 0) {
+            syslog(LOG_INFO, "skipping config file loading, %s doesn't exist",
+                    config_file);
+            return config;
+        }
+    }
+
+    parser = ucl_parser_new(
+            UCL_PARSER_KEY_LOWERCASE | UCL_PARSER_NO_IMPLICIT_ARRAYS);
+    ucl_parser_set_filevars(parser, config_file, false);
     if (!ucl_parser_add_file(parser, config_file)) {
         syslog(LOG_ERR, "vacation_config: UCL parsing failed");
-        return (NULL);
-    }
-    if ((err = ucl_parser_get_error(parser)) != NULL) {
-        syslog(LOG_ERR, "vacation_config: libucl error: %s", err);
-        return (NULL);
+        return NULL;
     }
 
-    return (ucl_parser_get_object(parser));
+    ucl_object_merge(config, ucl_parser_get_object(parser), false);
+    ucl_parser_free(parser);
+
+    return config;
 }

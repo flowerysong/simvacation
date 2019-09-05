@@ -1,49 +1,51 @@
 ACLOCAL_AMFLAGS = -I m4
-AM_LDFLAGS = @LDFLAGS@ @LDAP_LDFLAGS@ @BDB_LDFLAGS@
-AM_CPPFLAGS = @CPPFLAGS@ @LDAP_CPPFLAGS@ @BDB_CPPFLAGS@
+
+AM_LDFLAGS = \
+	@LDFLAGS@ \
+	@LDAP_LDFLAGS@ \
+	$(LIBUCL_LIBS) \
+	$(URCL_LIBS) \
+	@EXTRALIBS@
+
+AM_CPPFLAGS = \
+	@CPPFLAGS@ \
+	@LDAP_CPPFLAGS@
 
 bin_PROGRAMS = simvacation simunvacation
+noinst_PROGRAMS = genimbed
 
-simvacation_SOURCES = yasl.c yasl.h vdb.h vlu.h vutil.c vutil.h simvacation.h simvacation.c
-simvacation_LDADD = $(LIBUCL_LIBS)
+COMMON_FILES = \
+	rabin.h rabin.c \
+	yasl.h yasl.c \
+	vdb.h vdb.c \
+	vlu.h vlu.c \
+	vutil.h vutil.c \
+	simvacation.h
 
-simunvacation_SOURCES = yasl.c yasl.h simvacation.h vdb.h vlu.h vutil.c vutil.h simunvacation.c
-simunvacation_LDADD = $(LIBUCL_LIBS)
-
-if BACKEND_NULL
-simvacation_SOURCES += vdb_null.c vdb_null.h vlu_null.c vlu_null.h
-simunvacation_SOURCES += vdb_null.c vdb_null.h vlu_null.c vlu_null.h
-else
-simvacation_SOURCES += vlu_ldap.c vlu_ldap.h
-simvacation_LDADD += -lldap -llber
-simunvacation_SOURCES += vlu_ldap.c vlu_ldap.h
-simunvacation_LDADD += -lldap -llber
+if BUILD_REDIS
+COMMON_FILES += vdb_redis.c
 endif
 
-if BACKEND_LMDB
-simvacation_SOURCES += rabin.c rabin.h vdb_lmdb.c vdb_lmdb.h
-simvacation_LDADD += -llmdb
-simunvacation_SOURCES += rabin.c rabin.h vdb_lmdb.c vdb_lmdb.h
-simunvacation_LDADD += -llmdb
+if BUILD_LMDB
+COMMON_FILES += vdb_lmdb.c
 endif
 
-if BACKEND_BDB
-simvacation_SOURCES += vdb_berkeley.c vdb_berkeley.h
-simvacation_LDADD += @BDB_LIBS@
-simunvacation_SOURCES += vdb_berkeley.c vdb_berkeley.h
-simunvacation_LDADD += @BDB_LIBS@
+if BUILD_LDAP
+COMMON_FILES += vlu_ldap.c
 endif
 
-if BACKEND_REDIS
-simvacation_SOURCES += rabin.c rabin.h vdb_redis.c vdb_redis.h
-simvacation_LDADD += $(URCL_LIBS)
-simunvacation_SOURCES += rabin.c rabin.h vdb_redis.c vdb_redis.h
-simunvacation_LDADD += $(URCL_LIBS)
-endif
+BUILT_SOURCES = embedded_config.h
 
-dist_man_MANS = simvacation.8 simunvacation.8
+genimbed_SOURCES = genimbed.c
+
+simvacation_SOURCES = simvacation.c $(COMMON_FILES)
+
+simunvacation_SOURCES = simunvacation.c $(COMMON_FILES)
 
 EXTRA_DIST = COPYING.yasl VERSION packaging/rpm/simvacation.spec
+
+embedded_config.h: genimbed$(EXEEXT) simvacation.conf Makefile
+	./genimbed$(EXEEXT) simvacation.conf CONFIG_BASE > embedded_config.h
 
 rpm: dist-xz
 	rpmbuild -ta $(distdir).tar.xz

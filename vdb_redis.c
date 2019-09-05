@@ -1,23 +1,6 @@
 /*
- * Copyright (c) 2015-2016 Regents of The University of Michigan.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * Copyright (c) Regents of The University of Michigan
+ * See COPYING.
  */
 
 
@@ -35,40 +18,33 @@
 
 #include "rabin.h"
 #include "simvacation.h"
-#include "vdb_redis.h"
+#include "vdb.h"
 
 static char *redis_vdb_key(char *, char *);
 
-struct vdb *
-vdb_init(const ucl_object_t *config, const char *rcpt) {
-    struct vdb *        vdb;
-    struct vdb *        res = NULL;
-    const char *        host = NULL;
-    int64_t             port = 6379;
-    const ucl_object_t *config_key;
+VDB *
+redis_vdb_init(const ucl_object_t *config, const char *rcpt) {
+    VDB *       vdb;
+    VDB *       res = NULL;
+    const char *host = "127.0.0.1";
+    int64_t     port = 6379;
 
-    if ((config = ucl_object_lookup(config, "redis")) == NULL) {
-        syslog(LOG_DEBUG, "vdb_init: no config information, using defaults");
-    } else {
-        if ((config_key = ucl_object_lookup(config, "host")) != NULL) {
-            if (!ucl_object_tostring_safe(config_key, &host)) {
-                syslog(LOG_ERR, "vdb_init: ucl_object_tostring_safe failed");
-                goto error;
-            }
-        }
-        if ((config_key = ucl_object_lookup(config, "port")) != NULL) {
-            if (!ucl_object_toint_safe(config_key, &port)) {
-                syslog(LOG_ERR, "vdb_init: ucl_object_toint_safe failed");
-                goto error;
-            }
-        }
+    if (!ucl_object_tostring_safe(
+                ucl_object_lookup_path(config, "redis.host"), &host)) {
+        syslog(LOG_ERR, "vdb_init: ucl_object_tostring_safe failed");
+        goto error;
     }
-
-    if ((vdb = calloc(1, sizeof(struct vdb))) == NULL) {
+    if (!ucl_object_toint_safe(
+                ucl_object_lookup_path(config, "redis.port"), &port)) {
+        syslog(LOG_ERR, "vdb_init: ucl_object_toint_safe failed");
         goto error;
     }
 
-    if ((vdb->u = urcl_connect(host ? host : VDBDIR, port)) == NULL) {
+    if ((vdb = calloc(1, sizeof(VDB))) == NULL) {
+        goto error;
+    }
+
+    if ((vdb->redis = urcl_connect(host, port)) == NULL) {
         syslog(LOG_ALERT, "redis vdb_init urcl_connect: failed");
         goto error;
     }
@@ -80,24 +56,24 @@ vdb_init(const ucl_object_t *config, const char *rcpt) {
 
 error:
     if (vdb && !res) {
-        vdb_close(vdb);
+        redis_vdb_close(vdb);
     }
 
     return (res);
 }
 
 void
-vdb_close(struct vdb *vdb) {
+redis_vdb_close(VDB *vdb) {
     if (vdb) {
-        if (vdb->u) {
-            urcl_free(vdb->u);
+        if (vdb->redis) {
+            urcl_free(vdb->redis);
         }
         free(vdb);
     }
 }
 
 int
-vdb_recent(struct vdb *vdb, char *from) {
+redis_vdb_recent(VDB *vdb, char *from) {
     int         retval = 0;
     time_t      last, now;
     char *      key;
@@ -107,7 +83,7 @@ vdb_recent(struct vdb *vdb, char *from) {
         return (0);
     }
 
-    if (((res = urcl_command(vdb->u, key, "GET %s", key)) == NULL) ||
+    if (((res = urcl_command(vdb->redis, key, "GET %s", key)) == NULL) ||
             (res->type != REDIS_REPLY_STRING)) {
         goto cleanup;
     }
@@ -120,7 +96,7 @@ vdb_recent(struct vdb *vdb, char *from) {
         retval = 1;
     } else {
         /* This shouldn't happen, so let's clean it up */
-        urcl_free_result(urcl_command(vdb->u, key, "DEL %s", key));
+        urcl_free_result(urcl_command(vdb->redis, key, "DEL %s", key));
     }
 
 cleanup:
@@ -130,13 +106,7 @@ cleanup:
 }
 
 int
-vdb_store_interval(struct vdb *vdb, time_t interval) {
-    vdb->interval = interval;
-    return (0);
-}
-
-int
-vdb_store_reply(struct vdb *vdb, char *from) {
+redis_vdb_store_reply(VDB *vdb, char *from) {
     time_t now;
     char * key;
     char   value[ 16 ];
@@ -151,27 +121,11 @@ vdb_store_reply(struct vdb *vdb, char *from) {
     snprintf(value, 16, "%lld", (long long)now);
     snprintf(expire, 16, "%lld", (long long)vdb->interval);
 
-    urcl_free_result(urcl_command(vdb->u, key, "SET %s %s", key, value));
-    urcl_free_result(urcl_command(vdb->u, key, "EXPIRE %s %s", key, expire));
+    urcl_free_result(urcl_command(vdb->redis, key, "SET %s %s", key, value));
+    urcl_free_result(
+            urcl_command(vdb->redis, key, "EXPIRE %s %s", key, expire));
 
     return (0);
-}
-
-struct name_list *
-vdb_get_names(struct vdb *vdb) {
-    return (NULL);
-}
-
-void
-vdb_clean(struct vdb *vdb, char *user) {
-    /* Nothing; redis automatically expires stale keys */
-    return;
-}
-
-void
-vdb_gc(struct vdb *vdb) {
-    /* Nothing; redis automatically expires stale keys */
-    return;
 }
 
 static char *

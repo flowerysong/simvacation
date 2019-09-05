@@ -9,6 +9,7 @@ BuildRequires:  setup
 BuildRequires:  pkgconfig(urcl)
 BuildRequires:  pkgconfig(libucl)
 BuildRequires:  openldap-devel
+BuildRequires:  lmdb-devel
 
 %description
 simvacation is a simple vacation autoresponder that looks up users in LDAP.
@@ -17,8 +18,7 @@ simvacation is a simple vacation autoresponder that looks up users in LDAP.
 %setup -q
 
 %build
-%configure \
-    --with-backend=redis
+%configure
 
 make %{?_smp_mflags}
 
@@ -30,8 +30,6 @@ make DESTDIR=%{buildroot} INSTALL_OPTS='' install
 %defattr(-,root,root,-)
 %{_bindir}/simvacation
 %{_bindir}/simunvacation
-%{_mandir}/man8/simvacation.8*
-%{_mandir}/man8/simunvacation.8*
 
 
 %changelog

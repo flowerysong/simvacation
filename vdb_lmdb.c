@@ -1,23 +1,6 @@
 /*
- * Copyright (c) 2015-2016 Regents of The University of Michigan.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * Copyright (c) Regents of The University of Michigan
+ * See COPYING.
  */
 
 
@@ -35,38 +18,39 @@
 
 #include "rabin.h"
 #include "simvacation.h"
-#include "vdb_lmdb.h"
+#include "vdb.h"
 
 char *lmdb_vdb_key(char *, char *);
 void  lmdb_vdb_assert(MDB_env *, const char *);
 
-struct vdb *
-vdb_init(const ucl_object_t *config, const char *rcpt) {
-    int         rc;
-    struct vdb *vdb;
+VDB *
+lmdb_vdb_init(const ucl_object_t *config, const char *rcpt) {
+    int  rc;
+    VDB *vdb;
 
-    if ((vdb = calloc(1, sizeof(struct vdb))) == NULL) {
+    if ((vdb = calloc(1, sizeof(VDB))) == NULL) {
         return (NULL);
     }
 
-    if ((rc = mdb_env_create(&vdb->dbenv)) != 0) {
+    if ((rc = mdb_env_create(&vdb->lmdb)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_init mdb_env_create: %s", mdb_strerror(rc));
         goto error;
     }
 
-    if ((rc = mdb_env_set_assert(vdb->dbenv, &lmdb_vdb_assert)) != 0) {
+    if ((rc = mdb_env_set_assert(vdb->lmdb, &lmdb_vdb_assert)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_init mdb_env_set_assert: %s",
                 mdb_strerror(rc));
         goto error;
     }
 
-    if ((rc = mdb_env_set_mapsize(vdb->dbenv, 1073741824)) != 0) {
+    if ((rc = mdb_env_set_mapsize(vdb->lmdb, 1073741824)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_init mdb_env_mapsize: %s",
                 mdb_strerror(rc));
         goto error;
     }
 
-    if ((rc = mdb_env_open(vdb->dbenv, VDBDIR, 0, 0664)) != 0) {
+    /* FIXME: location should be configurable */
+    if ((rc = mdb_env_open(vdb->lmdb, "/var/lib/simvacation", 0, 0664)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_init mdb_env_open: %s", mdb_strerror(rc));
         goto error;
     }
@@ -89,17 +73,17 @@ lmdb_vdb_assert(MDB_env *dbenv, const char *msg) {
 }
 
 void
-vdb_close(struct vdb *vdb) {
+lmdb_vdb_close(VDB *vdb) {
     if (vdb) {
-        if (vdb->dbenv) {
-            mdb_env_close(vdb->dbenv);
+        if (vdb->lmdb) {
+            mdb_env_close(vdb->lmdb);
         }
         free(vdb);
     }
 }
 
 int
-vdb_recent(struct vdb *vdb, char *from) {
+lmdb_vdb_recent(VDB *vdb, char *from) {
     int      rc, retval = 0;
     time_t   last, now;
     MDB_txn *txn;
@@ -111,7 +95,7 @@ vdb_recent(struct vdb *vdb, char *from) {
         return (0);
     }
 
-    if ((rc = mdb_txn_begin(vdb->dbenv, NULL, MDB_RDONLY, &txn)) != 0) {
+    if ((rc = mdb_txn_begin(vdb->lmdb, NULL, MDB_RDONLY, &txn)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_recent mdb_txn_begin: %s",
                 mdb_strerror(rc));
         free(keyval);
@@ -153,13 +137,7 @@ cleanup:
 }
 
 int
-vdb_store_interval(struct vdb *vdb, time_t interval) {
-    vdb->interval = interval;
-    return (0);
-}
-
-int
-vdb_store_reply(struct vdb *vdb, char *from) {
+lmdb_vdb_store_reply(VDB *vdb, char *from) {
     int      rc;
     time_t   now;
     MDB_txn *txn;
@@ -172,7 +150,7 @@ vdb_store_reply(struct vdb *vdb, char *from) {
         return (1);
     }
 
-    if ((rc = mdb_txn_begin(vdb->dbenv, NULL, 0, &txn)) != 0) {
+    if ((rc = mdb_txn_begin(vdb->lmdb, NULL, 0, &txn)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_store_reply mdb_txn_begin: %s",
                 mdb_strerror(rc));
         return (1);
@@ -207,19 +185,8 @@ vdb_store_reply(struct vdb *vdb, char *from) {
     return (0);
 }
 
-struct name_list *
-vdb_get_names(struct vdb *vdb) {
-    return (NULL);
-}
-
 void
-vdb_clean(struct vdb *vdb, char *user) {
-    /* Nothing; the LMDB backend only does vdb_gc */
-    return;
-}
-
-void
-vdb_gc(struct vdb *vdb) {
+lmdb_vdb_gc(VDB *vdb) {
     int         rc;
     MDB_txn *   txn;
     MDB_dbi     dbi;
@@ -234,7 +201,7 @@ vdb_gc(struct vdb *vdb) {
 
     expire = expire - vdb->interval;
 
-    if ((rc = mdb_txn_begin(vdb->dbenv, NULL, 0, &txn)) != 0) {
+    if ((rc = mdb_txn_begin(vdb->lmdb, NULL, 0, &txn)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_gc mdb_txn_begin: %s", mdb_strerror(rc));
         return;
     }

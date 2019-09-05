@@ -14,8 +14,6 @@ AC_DEFINE_UNQUOTED(VDBDIR, ["$with_vacationdb"], [vacation db location])
 AC_ARG_WITH(syslog, AC_HELP_STRING([--with-syslog=FACILITY], [default: LOG_MAIL]), [], with_syslog="LOG_MAIL")
 AC_DEFINE_UNQUOTED(LOG_VACATION, [$with_syslog], [syslog facility])
 
-AC_ARG_WITH(backend, AC_HELP_STRING([--with-backend=VDB], [default: lmdb]), [], with_backend="lmdb")
-
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CC_C99
@@ -23,27 +21,12 @@ AC_PROG_CC_C99
 # Checks for libraries.
 PKG_CHECK_MODULES([LIBUCL], [libucl])
 
-AS_IF([test x$with_backend = xbdb],
-[AX_PATH_BDB([4], [
-    AC_DEFINE([HAVE_BDB], [1], [Define if BDB exists.])
-    AC_SUBST(BDB_LDFLAGS)
-    AC_SUBST(BDB_CPPFLAGS)
-    AC_SUBST(BDB_LIBS)
-])])
+AC_ARG_WITH([redis], AC_HELP_STRING([--with-redis], [Build with Redis support]))
+AS_IF([test x$with_redis != 'xno'],
+    [PKG_CHECK_MODULES([URCL], [urcl >= 1.1], [AC_DEFINE([HAVE_URCL], [1], [Define to 1 if URCL is found])])])
 
-AS_IF([test x$with_backend = xlmdb],
-[AX_CHECK_LIBRARY(LMDB, [lmdb.h], [lmdb], [], [AC_MSG_ERROR([Unable to find LMDB])])])
-
-AS_IF([test x$with_backend = xredis],
-[PKG_CHECK_MODULES([URCL], [urcl >= 1.1])])
-
-AM_CONDITIONAL(BACKEND_BDB, [test x$with_backend = xbdb])
-AM_CONDITIONAL(BACKEND_LMDB, [test x$with_backend = xlmdb])
-AM_CONDITIONAL(BACKEND_REDIS, [test x$with_backend = xredis])
-AM_CONDITIONAL(BACKEND_NULL, [test x$with_backend = xnull])
-
-AS_IF([test x$with_backend != null ],
-[AX_CHECK_LIBRARY(LDAP, [ldap.h], [ldap], [], [AC_MSG_ERROR([Unable to find OpenLDAP])])])
+AX_WITH_LIBRARY([lmdb], [LMDB], [lmdb.h], [lmdb])
+AX_WITH_LIBRARY([ldap], [LDAP], [ldap.h], [ldap], [-llber])
 
 # Checks for header files.
 AC_HEADER_DIRENT
@@ -59,6 +42,12 @@ AC_FUNC_CLOSEDIR_VOID
 AC_FUNC_MALLOC
 AC_FUNC_FORK
 AC_CHECK_FUNCS([dup2 memset strcasecmp strdup strerror strncasecmp strrchr])
+
+AC_SUBST(EXTRALIBS, [])
+
+AM_CONDITIONAL(BUILD_LDAP, [test x"$ax_cv_have_LDAP" = 'xyes'])
+AM_CONDITIONAL(BUILD_LMDB, [test x"$ax_cv_have_LMDB" = xyes])
+AM_CONDITIONAL(BUILD_REDIS, [test x"$with_redis" != 'xno'])
 
 AC_CONFIG_FILES([Makefile packaging/rpm/simvacation.spec])
 AC_OUTPUT

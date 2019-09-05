@@ -1,26 +1,6 @@
 /*
- * simunvacation.c - clean up database files for people who are no longer
- * "on vacation".
- *
- * Copyright (c) 2004-2016 Regents of The University of Michigan.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * Copyright (c) Regents of The University of Michigan
+ * See COPYING.
  */
 
 #include <ctype.h>
@@ -47,10 +27,12 @@ main(int argc, char **argv) {
     extern char *optarg;
     char         ch;
 
-    struct vlu *vlu;
-    struct vdb *vdb;
+    struct vlu_backend *vlu;
+    VLU *               vluh = NULL;
+    struct vdb_backend *vdb;
+    VDB *               vdbh = NULL;
 
-    char *        config_file = CONFFILE;
+    char *        config_file = NULL;
     ucl_object_t *config;
 
     struct name_list *uniqnames;
@@ -84,12 +66,25 @@ main(int argc, char **argv) {
         exit(1);
     }
 
-    vdb = vdb_init(config, "simunvacation");
-    uniqnames = vdb_get_names(vdb);
+    if ((vdb = vdb_backend(ucl_object_tostring(
+                 ucl_object_lookup_path(config, "core.vdb")))) == NULL) {
+        exit(1);
+    }
 
-    vlu = vlu_init(config);
-    if (vlu_connect(vlu) != 0) {
-        vdb_close(vdb);
+    if ((vdbh = vdb->init(config, "simunvacation")) == NULL) {
+        exit(1);
+    }
+
+    uniqnames = vdb->get_names(vdbh);
+
+    if ((vlu = vlu_backend(ucl_object_tostring(
+                 ucl_object_lookup_path(config, "core.vlu")))) == NULL) {
+        vdb->close(vdbh);
+        exit(1);
+    }
+
+    if ((vluh = vlu->init(config)) == NULL) {
+        vdb->close(vdbh);
         exit(1);
     }
 
@@ -98,10 +93,10 @@ main(int argc, char **argv) {
      * still on vacation.  If not, tell the database to clean them up.
      */
     for (u = uniqnames; u; u = u->next) {
-        switch (vlu_search(vlu, u->name)) {
+        switch (vlu->search(vluh, u->name)) {
         case VLU_RESULT_PERMFAIL:
             syslog(LOG_INFO, "cleaning up %s", u->name);
-            vdb_clean(vdb, u->name);
+            vdb->clean(vdbh, u->name);
             break;
         case VLU_RESULT_TEMPFAIL:
             syslog(LOG_ERR, "lookup error processing %s", u->name);
@@ -113,16 +108,15 @@ main(int argc, char **argv) {
     }
 
     /* Vacuum the database. */
-    vdb_gc(vdb);
+    vdb->gc(vdbh);
 
-    vdb_close(vdb);
-    vlu_close(vlu);
+    vdb->close(vdbh);
+    vlu->close(vluh);
     exit(0);
 }
 
 void
 usage(void) {
-    fprintf(stderr, "usage: simunvacation [-v vbdir] [-s searchbase]\n");
-    fprintf(stderr, "                [-h ldap_host] [-p ldap_port]\n");
+    fprintf(stderr, "usage: simunvacation [-c config_file] [-d]\n");
     exit(1);
 }
