@@ -18,7 +18,7 @@
 #include "vlu.h"
 
 VLU *
-ldap_vlu_init(const ucl_object_t *config) {
+ldap_vlu_init() {
     VLU *         vlu = NULL;
     const char *  uri = NULL;
     struct berval credentials = {0};
@@ -31,7 +31,7 @@ ldap_vlu_init(const ucl_object_t *config) {
     memset(vlu, 0, sizeof(VLU));
 
     if (!ucl_object_tostring_safe(
-                ucl_object_lookup_path(config, "ldap.search_base"),
+                ucl_object_lookup_path(vac_config, "ldap.search_base"),
                 &(vlu->ldap->search_base))) {
         syslog(LOG_ERR, "vlu_init: ucl_object_tostring_safe failed");
         return NULL;
@@ -39,13 +39,13 @@ ldap_vlu_init(const ucl_object_t *config) {
 
 
     if (!ucl_object_tostring_safe(
-                ucl_object_lookup_path(config, "ldap.attributes.vacation"),
+                ucl_object_lookup_path(vac_config, "ldap.attributes.vacation"),
                 &(vlu->ldap->attr_vacation))) {
         syslog(LOG_ERR, "vlu_init: ucl_object_tostring_safe failed");
         return NULL;
     }
 
-    if (!ucl_object_tostring_safe(ucl_object_lookup_path(config,
+    if (!ucl_object_tostring_safe(ucl_object_lookup_path(vac_config,
                                           "ldap.attributes.vacation_message"),
                 &(vlu->ldap->attr_vacation_msg))) {
         syslog(LOG_ERR, "vlu_init: ucl_object_tostring_safe failed");
@@ -53,7 +53,7 @@ ldap_vlu_init(const ucl_object_t *config) {
     }
 
     if (!ucl_object_tostring_safe(
-                ucl_object_lookup_path(config, "ldap.attributes.name"),
+                ucl_object_lookup_path(vac_config, "ldap.attributes.name"),
                 &(vlu->ldap->attr_name))) {
         syslog(LOG_ERR, "vlu_init: ucl_object_tostring_safe failed");
         return NULL;
@@ -68,7 +68,7 @@ ldap_vlu_init(const ucl_object_t *config) {
     vlu->ldap->timeout.tv_sec = 30;
 
     if (!ucl_object_tostring_safe(
-                ucl_object_lookup_path(config, "ldap.uri"), &uri)) {
+                ucl_object_lookup_path(vac_config, "ldap.uri"), &uri)) {
         syslog(LOG_ERR, "vlu_init: ucl_object_tostring_safe failed");
         return NULL;
     }
@@ -88,8 +88,8 @@ ldap_vlu_init(const ucl_object_t *config) {
     return vlu;
 }
 
-vlu_result
-ldap_vlu_search(VLU *vlu, char *rcpt) {
+vac_result
+ldap_vlu_search(VLU *vlu, const yastr rcpt) {
     char            filter[ 64 ];
     int             rc, retval, matches;
     LDAPMessage *   result;
@@ -109,10 +109,10 @@ ldap_vlu_search(VLU *vlu, char *rcpt) {
     case LDAP_UNAVAILABLE:
     case LDAP_OTHER:
     case LDAP_LOCAL_ERROR:
-        retval = VLU_RESULT_TEMPFAIL;
+        retval = VAC_RESULT_TEMPFAIL;
         break;
     default:
-        retval = VLU_RESULT_PERMFAIL;
+        retval = VAC_RESULT_PERMFAIL;
     }
     if (rc != LDAP_SUCCESS) {
         syslog(LOG_ALERT, "vlu_search: ldap_search failed: %s",
@@ -124,10 +124,10 @@ ldap_vlu_search(VLU *vlu, char *rcpt) {
 
     if (matches > 1) {
         syslog(LOG_ALERT, "vlu_search: multiple matches for %s", rcpt);
-        return VLU_RESULT_PERMFAIL;
+        return VAC_RESULT_PERMFAIL;
     } else if (matches == 0) {
         syslog(LOG_ALERT, "vlu_search: no match for %s", rcpt);
-        return VLU_RESULT_PERMFAIL;
+        return VAC_RESULT_PERMFAIL;
     }
 
     vlu->ldap->result = ldap_first_entry(vlu->ldap->ld, result);
@@ -141,45 +141,33 @@ ldap_vlu_search(VLU *vlu, char *rcpt) {
     } else {
         /* User is no longer on vacation */
         syslog(LOG_INFO, "vlu_search: user %s is not on vacation", rcpt);
-        return VLU_RESULT_PERMFAIL;
+        return VAC_RESULT_PERMFAIL;
     }
 
-    return VLU_RESULT_OK;
+    return VAC_RESULT_OK;
 }
 
-struct name_list *
-ldap_vlu_aliases(VLU *vlu, char *rcpt) {
-    struct berval **  cnames;
-    int               i;
-    struct name_list *result;
-    struct name_list *cur;
+ucl_object_t *
+ldap_vlu_aliases(VLU *vlu, const yastr rcpt) {
+    struct berval **cnames;
+    int             i;
+    ucl_object_t *  result;
 
     cnames = ldap_get_values_len(vlu->ldap->ld, vlu->ldap->result, "cn");
 
-    if ((cur = malloc(sizeof(struct name_list))) == NULL) {
-        syslog(LOG_ALERT, "vlu_aliases: malloc for name_list failed");
-        return NULL;
-    }
-
-    cur->name = rcpt;
-    cur->next = NULL;
-    result = cur;
+    result = ucl_object_fromstring(rcpt);
 
     for (i = 0; cnames && cnames[ i ] != NULL; i++) {
-        if ((cur->next = malloc(sizeof(struct name_list))) == NULL) {
-            syslog(LOG_ALERT, "vlu_aliases: malloc for name_list failed");
-            return NULL;
-        }
-        cur = cur->next;
-        cur->name = strndup(cnames[ i ]->bv_val, cnames[ i ]->bv_len);
-        cur->next = NULL;
+        result = ucl_elt_append(
+                result, ucl_object_fromlstring(
+                                cnames[ i ]->bv_val, cnames[ i ]->bv_len));
     }
 
     return result;
 }
 
 yastr
-ldap_vlu_message(VLU *vlu, char *rcpt) {
+ldap_vlu_message(VLU *vlu, const yastr rcpt) {
     struct berval **rawmsg;
     int             i;
     yastr           vacmsg;
@@ -201,12 +189,12 @@ ldap_vlu_message(VLU *vlu, char *rcpt) {
 }
 
 yastr
-ldap_vlu_name(VLU *vlu, char *rcpt) {
+ldap_vlu_name(VLU *vlu, const yastr rcpt) {
     return yaslauto(ldap_get_dn(vlu->ldap->ld, vlu->ldap->result));
 }
 
 yastr
-ldap_vlu_display_name(VLU *vlu, char *rcpt) {
+ldap_vlu_display_name(VLU *vlu, const yastr rcpt) {
     struct berval **name;
     LDAPDN          dn = NULL;
 

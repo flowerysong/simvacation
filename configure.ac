@@ -28,6 +28,11 @@ AS_IF([test x$with_redis != 'xno'],
 AX_WITH_LIBRARY([lmdb], [LMDB], [lmdb.h], [lmdb])
 AX_WITH_LIBRARY([ldap], [LDAP], [ldap.h], [ldap], [-llber])
 
+AC_ARG_WITH([cmocka], AC_HELP_STRING([--with-cmocka], [Build unit tests]))
+AS_IF(
+    [test "x$with_cmocka" = "xyes"],
+    [PKG_CHECK_MODULES([CMOCKA], [cmocka], [AC_DEFINE([HAVE_CMOCKA], [1], [Define to 1 if CMOCKA is available])])])
+
 # Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_STDC
@@ -45,9 +50,10 @@ AC_CHECK_FUNCS([dup2 memset strcasecmp strdup strerror strncasecmp strrchr])
 
 AC_SUBST(EXTRALIBS, [])
 
+AM_CONDITIONAL(BUILD_CMOCKA, [test x"$with_cmocka" = xyes])
 AM_CONDITIONAL(BUILD_LDAP, [test x"$ax_cv_have_LDAP" = 'xyes'])
 AM_CONDITIONAL(BUILD_LMDB, [test x"$ax_cv_have_LMDB" = xyes])
 AM_CONDITIONAL(BUILD_REDIS, [test x"$with_redis" != 'xno'])
 
-AC_CONFIG_FILES([Makefile packaging/rpm/simvacation.spec])
+AC_CONFIG_FILES([Makefile packaging/rpm/simvacation.spec test/Makefile])
 AC_OUTPUT

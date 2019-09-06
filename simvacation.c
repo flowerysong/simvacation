@@ -15,23 +15,16 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <ucl.h>
-
 #include "simvacation.h"
 #include "vdb.h"
 #include "vlu.h"
 #include "vutil.h"
 
-int   check_from();
-void  myexit(int);
-int   nsearch(char *, char *);
-int   pexecv(char *path, char **);
-void  readheaders();
-yastr append_header(yastr, char *, int);
-int   check_header(char *, const char *);
-int   sendmessage(char *, char *);
-void  usage(char *);
-
+struct headers *readheaders(const ucl_object_t *);
+static yastr    pretty_sender(const char *, const char *);
+yastr           append_header(yastr, char *, int);
+int             check_header(char *, const char *);
+int             send_message(yastr, yastr, yastr, yastr, struct headers *);
 
 /* RFC 2822 2.1.1
  *  There are two limits that this standard places on the number of
@@ -40,179 +33,165 @@ void  usage(char *);
  *  the CRLF.
  */
 #define MAXLINE 1000
-#define PRETTYLINE 80
-
-struct name_list *names;
-struct headers *  h;
-static char       from[ MAXLINE ];
-yastr             canon_from;
-
-char *              rcpt;
-struct vdb_backend *vdb = NULL;
-VDB *               vdbh = NULL;
-struct vlu_backend *vlu = NULL;
-VLU *               vluh = NULL;
 
 extern int   optind, opterr;
 extern char *optarg;
 
-int debug;
-
-
 int
 main(int argc, char **argv) {
-    debug = 0;
-    time_t        interval;
-    int           ch, rc;
-    char *        vacmsg;
-    char *        progname;
-    char *        config_file = NULL;
-    ucl_object_t *config;
+    int   retval = EX_OK;
+    bool  debug = false;
+    int   ch, rc;
+    yastr from = NULL;
+    yastr canon_from = NULL;
+    yastr rcpt;
+    yastr vacmsg = NULL;
+    yastr progname;
+    char *p;
+    char *config_file = NULL;
 
-    if ((progname = strrchr(argv[ 0 ], '/')) == NULL)
-        progname = strdup(argv[ 0 ]);
-    else
-        progname = strdup(progname + 1);
+    struct vdb_backend *vdb = NULL;
+    VDB *               vdbh = NULL;
+    struct vlu_backend *vlu = NULL;
+    VLU *               vluh = NULL;
+    struct headers *    hdrs = NULL;
+
+    progname = yaslauto(argv[ 0 ]);
+    if ((p = strrchr(progname, '/')) != NULL) {
+        yaslrange(progname, p - progname + 1, -1);
+    }
 
     openlog(progname, LOG_PID, LOG_VACATION);
     opterr = 0;
-    interval = -1;
 
-    h = malloc(sizeof(struct headers));
-    memset(h, 0, sizeof(struct headers));
-
-    from[ 0 ] = '\0';
-
-    while ((ch = getopt(argc, argv, "c:df:r:")) != EOF) {
+    while ((ch = getopt(argc, argv, "c:df:")) != EOF) {
         switch ((char)ch) {
         case 'c':
             config_file = optarg;
             break;
         case 'd':
-            debug = 1;
+            debug = true;
             break;
         case 'f':
-            strncpy(from, optarg, MAXLINE - 1);
-            from[ MAXLINE - 1 ] = '\0';
-            break;
-        case 'r':
-            if (isdigit(*optarg)) {
-                interval = atol(optarg) * SECSPERDAY;
-                if (interval < 0) {
-                    usage(progname);
-                }
-            } else {
-                usage(progname);
-            }
+            from = yaslauto(optarg);
             break;
 
         case '?':
         default:
-            usage(progname);
+            retval = EX_USAGE;
         }
     }
     argc -= optind;
     argv += optind;
 
-    if (!*argv) {
-        usage(progname);
-        myexit(EX_USAGE);
+    if ((!*argv) || (retval != EX_OK)) {
+        fprintf(stderr, "usage: %s [-c conf_file] [-d] [-f from_address]\n",
+                progname);
+        retval = EX_USAGE;
+        goto done;
     }
 
     if (debug) {
         openlog(progname, LOG_NOWAIT | LOG_PERROR | LOG_PID, LOG_VACATION);
     }
 
-    rcpt = *argv;
+    rcpt = yaslauto(*argv);
 
-    if ((config = vacation_config(config_file)) == NULL) {
-        myexit(EX_TEMPFAIL);
+    if (read_vacation_config(config_file) != VAC_RESULT_OK) {
+        retval = EX_TEMPFAIL;
+        goto done;
     }
 
     if ((vdb = vdb_backend(ucl_object_tostring(
-                 ucl_object_lookup_path(config, "core.vdb")))) == NULL) {
-        myexit(EX_TEMPFAIL);
+                 ucl_object_lookup_path(vac_config, "core.vdb")))) == NULL) {
+        retval = EX_TEMPFAIL;
+        goto done;
     }
 
     if ((vlu = vlu_backend(ucl_object_tostring(
-                 ucl_object_lookup_path(config, "core.vlu")))) == NULL) {
-        myexit(EX_TEMPFAIL);
+                 ucl_object_lookup_path(vac_config, "core.vlu")))) == NULL) {
+        retval = EX_TEMPFAIL;
+        goto done;
     }
 
 
-    if ((vluh = vlu->init(config)) == NULL) {
-        myexit(EX_TEMPFAIL);
+    if ((vluh = vlu->init()) == NULL) {
+        retval = EX_TEMPFAIL;
+        goto done;
     }
 
-    if ((rc = vlu->search(vluh, rcpt)) != VLU_RESULT_OK) {
-        switch (rc) {
-        case VLU_RESULT_PERMFAIL:
-            /* We're done processing this message. */
-            myexit(EX_OK);
-
-        case VLU_RESULT_TEMPFAIL:
-        default:
-            myexit(EX_TEMPFAIL);
+    if ((rc = vlu->search(vluh, rcpt)) != VAC_RESULT_OK) {
+        if (rc != VAC_RESULT_PERMFAIL) {
+            retval = EX_TEMPFAIL;
         }
-        myexit(rc);
+        goto done;
     }
 
-    if ((vdbh = vdb->init(config, rcpt)) == NULL) {
-        myexit(EX_OK);
+    if ((vdbh = vdb->init(rcpt)) == NULL) {
+        goto done;
     }
 
-    if (interval != -1) {
-        vdb->store_interval(vdbh, interval);
+    if ((hdrs = readheaders(vlu->aliases(vluh, rcpt))) == NULL) {
+        goto done;
     }
 
-    names = vlu->aliases(vluh, rcpt);
-
-    readheaders();
-
-    if (!vdb->recent(vdbh, canon_from)) {
-        char rcptstr[ MAXLINE ];
-        if ((vacmsg = vlu->message(vluh, rcpt)) == NULL) {
-            vacmsg = "I am currently out of email contact.\n"
-                     "Your mail will be read when I return.";
-        }
-
-        vdb->store_reply(vdbh, canon_from);
-        sprintf(rcptstr, "%s@%s", rcpt, DOMAIN);
-        sendmessage(rcptstr, vacmsg);
-        syslog(LOG_DEBUG, "mail: sent message for %s to %s from %s", rcpt, from,
-                rcptstr);
-    } else {
-        syslog(LOG_DEBUG, "mail: suppressed message for %s to %s", rcpt, from);
+    if (!hdrs->rcpt_match) {
+        syslog(LOG_INFO, "message does not appear to be to %s", rcpt);
+        goto done;
     }
 
-    myexit(EX_OK);
+    if ((canon_from = check_from(from)) == NULL) {
+        syslog(LOG_INFO, "skipping message, bad sender %s", from);
+        goto done;
+    }
 
-    /* This doesn't do anything, but it makes the compiler happy. */
-    return EX_OK;
+    if (vdb->recent(vdbh, canon_from) == VDB_STATUS_RECENT) {
+        syslog(LOG_DEBUG, "suppressed message for %s to %s", rcpt, from);
+        goto done;
+    }
+
+    /* All the checks have passed, send the message. */
+    vdb->store_reply(vdbh, canon_from);
+
+    if ((vacmsg = vlu->message(vluh, rcpt)) == NULL) {
+        vacmsg = yaslauto(ucl_object_tostring(
+                ucl_object_lookup_path(vac_config, "core.default_message")));
+    }
+
+    retval = send_message(pretty_sender(rcpt, vlu->display_name(vluh, rcpt)),
+            from, canon_from, vacmsg, hdrs);
+
+    if (retval == EX_OK) {
+        syslog(LOG_DEBUG, "sent message for %s to %s", rcpt, from);
+    }
+
+done:
+    if (vdb) {
+        vdb->close(vdbh);
+    }
+    if (vlu) {
+        vlu->close(vluh);
+    }
+
+    exit(retval);
 }
 
-void
-readheaders() {
-    struct name_list *cur;
-    char *            p;
-    int               tome, state, stripfield = 0;
-    char              buf[ MAXLINE ];
-    yastr *           current_hdr = NULL;
+struct headers *
+readheaders(const ucl_object_t *names) {
+    struct headers *    h;
+    char *              p;
+    int                 state, stripfield = 0;
+    char                buf[ MAXLINE ];
+    yastr *             current_hdr = NULL;
+    yastr               rcpt_hdrs = yaslempty();
+    ucl_object_iter_t   i;
+    const ucl_object_t *obj;
+
+    h = calloc(1, sizeof(struct headers));
+    h->rcpt_match = false;
 
     state = HEADER_UNKNOWN;
-    tome = 0;
     while (fgets(buf, sizeof(buf), stdin) && *buf != '\n') {
-        if (strncasecmp(buf, "From ", 5) == 0) {
-            state = HEADER_UNKNOWN;
-            /* FIXME: What is this looking at? */
-            for (p = buf + 5; *p && *p != ' '; ++p)
-                ;
-            *p = '\0';
-            strncpy(from, buf + 5, MAXLINE - 1);
-            from[ MAXLINE - 1 ] = '\0';
-            if ((p = index(from, '\n')))
-                *p = '\0';
-        }
         if (check_header(buf, "Message-ID:") == 0) {
             state = HEADER_APPEND;
             stripfield = 1;
@@ -241,7 +220,7 @@ readheaders() {
             }
             if (strncasecmp(p, "no", 2) != 0) {
                 syslog(LOG_DEBUG, "readheaders: suppressing message: %s", buf);
-                myexit(EX_OK);
+                return NULL;
             }
         }
         /* RFC 3834 2
@@ -256,7 +235,7 @@ readheaders() {
              */
             state = HEADER_NOREPLY;
             syslog(LOG_DEBUG, "readheaders: suppressing message: %s", buf);
-            myexit(EX_OK);
+            return NULL;
         } else if (check_header(buf, "Precedence") == 0) {
             /* RFC 3834 2
              *  For instance, if the subject message contained a
@@ -284,7 +263,7 @@ readheaders() {
                     syslog(LOG_DEBUG,
                             "readheaders: suppressing message: precedence %s",
                             p);
-                    myexit(EX_OK);
+                    return NULL;
                 }
             }
         } else if (check_header(buf, "X-Auto-Response-Suppress:") == 0) {
@@ -319,9 +298,10 @@ readheaders() {
              * The order of these values in the header is not important.
              */
             state = HEADER_NOREPLY;
-            if (nsearch("OOF", buf) || nsearch("All", buf)) {
+            if (is_substring("OOF", buf, false) ||
+                    is_substring("All", buf, false)) {
                 syslog(LOG_DEBUG, "readheaders: suppressing message: %s", buf);
-                myexit(EX_OK);
+                return NULL;
             }
         }
         /* RFC 3834 2
@@ -352,13 +332,10 @@ readheaders() {
 
         switch (state) {
         case HEADER_RECIPIENT:
-            if (tome) {
-                break;
-            }
-            for (cur = names; !tome && cur; cur = cur->next) {
-                tome += nsearch(cur->name, buf);
-            }
+            rcpt_hdrs = yaslcat(rcpt_hdrs, buf);
+            rcpt_hdrs = yaslcatlen(rcpt_hdrs, " ", 1);
             break;
+
         case HEADER_APPEND:
             *current_hdr = append_header(*current_hdr, buf, stripfield);
             stripfield = 0;
@@ -367,26 +344,14 @@ readheaders() {
         }
     }
 
-    if (!*from) {
-        syslog(LOG_NOTICE, "readheaders: skipping message: unknown sender");
-        myexit(EX_OK);
+    i = ucl_object_iterate_new(names);
+    while (!h->rcpt_match &&
+            (obj = ucl_object_iterate_safe(i, false)) != NULL) {
+        h->rcpt_match = is_substring(ucl_object_tostring(obj), rcpt_hdrs, true);
     }
+    ucl_object_iterate_free(i);
 
-    syslog(LOG_DEBUG, "readheaders: mail from %s", from);
-
-    if (!tome) {
-        syslog(LOG_NOTICE,
-                "readheaders: suppressing message: mail does not appear to be "
-                "to user %s",
-                vlu->name(vluh, rcpt));
-        myexit(EX_OK);
-    }
-
-    if (check_from()) {
-        syslog(LOG_NOTICE, "readheaders: suppressing message: bad sender %s",
-                from);
-        myexit(EX_OK);
-    }
+    return h;
 }
 
 int
@@ -411,188 +376,46 @@ append_header(yastr str, char *value, int stripfield) {
     return s;
 }
 
-/*
- * nsearch --
- *	do a nice, slow, search of a string for a substring.
- *	(umich) - change any of {'.', '_'} to ' '.
- */
-int
-nsearch(char *name, char *str) {
-    int   len;
-    char *c;
+static yastr
+pretty_sender(const char *sender, const char *sender_name) {
+    yastr       retval = yaslempty();
+    const char *domain = ucl_object_tostring(
+            ucl_object_lookup_path(vac_config, "core.domain"));
 
-    /*
-     * convert any periods or underscores to spaces
-     */
-    for (c = str; *c; c++) {
-        if ((*c == '.') || (*c == '_')) {
-            *c = ' ';
-        }
-    }
-
-    for (len = strlen(name); *str; ++str) {
-        if (!strncasecmp(name, str, len)) {
-            return (1);
-        }
-    }
-    return (0);
-}
-
-/* check_from
- *
- * RFC 3834 2
- *  Responders MUST NOT generate any response for which the
- *  destination of that response would be a null address (e.g., an
- *  address for which SMTP MAIL FROM or Return-Path is <>), since the
- *  response would not be delivered to a useful destination.
- *  Responders MAY refuse to generate responses for addresses commonly
- *  used as return addresses by responders - e.g., those with local-
- *  parts matching "owner-*", "*-request", "MAILER-DAEMON", etc.
- */
-int
-check_from() {
-    static struct ignore {
-        char *name;
-        int   len;
-    } ignore[] = {
-            {"-errors", 7},
-            {"-request", 8},
-            {"postmaster", 10},
-            {"uucp", 4},
-            {"mailer-daemon", 13},
-            {"mailer", 6},
-            {"-relay", 6},
-            {"<>", 2},
-            {NULL, 0},
-    };
-    struct ignore *cur;
-    size_t         len;
-    yastr          a;
-    yastr          buf;
-    char *         p;
-    char *         at;
-    char *         sep;
-
-    a = yaslauto(from);
-
-    /* Canonicalize SRS addresses. We don't need to verify hashes and timestamps
-     * because this doesn't increase our risk of replying to a forged address.
-     */
-    if (*a == '"') {
-        p = a + 1;
+    if (sender_name) {
+        retval = yaslcatprintf(
+                retval, "\"%s\" <%s@%s>", sender_name, sender, domain);
     } else {
-        p = a;
+        retval = yaslcatprintf(retval, "%s@%s", sender, domain);
     }
-    if ((strncasecmp(p, "SRS", 3) == 0) && (yasllen(a) > 13) &&
-            ((p[ 3 ] == '0') || (p[ 3 ] == '1')) &&
-            ((p[ 4 ] == '=') || (p[ 4 ] == '-') || (p[ 4 ] == '+'))) {
-
-        if (*a == '"') {
-            yaslrange(a, 1, -1);
-            buf = yaslauto("\"");
-        } else {
-            buf = yaslempty();
-        }
-
-        if (a[ 3 ] == '1') {
-            yaslrange(a, 5, -1);
-            if (((p = strstr(a, "==")) != NULL) ||
-                    ((p = strstr(a, "=-")) != NULL) ||
-                    ((p = strstr(a, "=+")) != NULL)) {
-                yaslrange(a, (p - a) + 2, -1);
-            }
-        } else {
-            yaslrange(a, 5, -1);
-        }
-
-        /* Skip the hash and timestamp */
-        if (yasllen(a) && ((p = strchr(a, '=')) != NULL) &&
-                ((p = strchr(p + 1, '=')) != NULL)) {
-            yaslrange(a, (p - a) + 1, -1);
-        }
-
-        /* a is now domain.tld=localpart@forwarder.tld
-         * or the address is borked */
-        if (yasllen(a) && ((sep = strchr(a, '=')) != NULL) &&
-                ((at = strrchr(sep, '@')) != NULL)) {
-            buf = yaslcatlen(buf, sep + 1, at - sep - 1);
-            buf = yaslcat(buf, "@");
-            buf = yaslcatlen(buf, a, sep - a);
-        }
-
-        yaslfree(a);
-
-        if (yasllen(buf) > 1) {
-            syslog(LOG_NOTICE, "check_from: corrected for SRS: %s", buf);
-            a = buf;
-        } else {
-            yaslfree(buf);
-            a = yaslauto(from);
-        }
-    }
-
-    /* Canonicalize BATV addresses */
-    if ((strncasecmp(a, "prvs=", 5) == 0) &&
-            ((p = strchr(a + 5, '=')) != NULL)) {
-        yaslrange(a, p - a + 1, -1);
-        syslog(LOG_NOTICE, "check_from: corrected for BATV: %s", a);
-    }
-
-    /* Canonicalize bastardized BATV addresses */
-    if ((strncasecmp(a, "btv1==", 6) == 0) &&
-            ((p = strstr(a + 6, "==")) != NULL)) {
-        yaslrange(a, p - a + 2, -1);
-        syslog(LOG_NOTICE, "check_from: corrected for Barracuda: %s", a);
-    }
-
-    /* Save canonical address */
-    canon_from = yasldup(a);
-
-    /* Chop off the domain */
-    if ((p = strrchr(a, '@')) != NULL) {
-        yaslrange(a, 0, p - a - 1);
-    }
-
-    yasltrim(a, "\"");
-    yasltolower(a);
-    len = yasllen(a);
-    p = a + len;
-
-    for (cur = ignore; cur->name; cur++) {
-        /* This is a bit convoluted because we're matching the end of
-         * the string.
-         */
-        if (len >= cur->len && memcmp(cur->name, p - cur->len, cur->len) == 0) {
-            yaslfree(a);
-            return (1);
-        }
-    }
-
-    yaslfree(a);
-    return (0);
+    return retval;
 }
 
+
 int
-sendmessage(char *myname, char *vmsg) {
-    char  hostname[ 255 ];
-    char *nargv[ 5 ];
+send_message(yastr sender, yastr rcpt, yastr canon_rcpt, yastr vmsg,
+        struct headers *h) {
+    char   hostname[ 255 ];
+    int    splitlen;
+    yastr *split;
 
-#ifdef HAVE_SENDMAIL
-    nargv[ 0 ] = "sendmail";
-    nargv[ 1 ] = "-f<>";
-    nargv[ 2 ] = from;
-    nargv[ 3 ] = NULL;
-#else
-    nargv[ 0 ] = "simsendmail"; /* really simsendmail */
-    nargv[ 1 ] = "-f";
-    nargv[ 2 ] = "";
-    nargv[ 3 ] = from;
-    nargv[ 4 ] = NULL;
-#endif
+    split = yaslsplitargs(ucl_object_tostring(ucl_object_lookup_path(
+                                  vac_config, "core.sendmail")),
+            &splitlen);
 
-    if ((pexecv(_PATH_SENDMAIL, nargv)) == -1) {
-        syslog(LOG_ERR, "mail: pexecv of %s failed", _PATH_SENDMAIL);
-        return (EX_TEMPFAIL);
+    split = realloc(split, splitlen + 1 * sizeof(yastr));
+    split[ splitlen ] = NULL;
+
+    /* Replace placeholder with recipient */
+    for (int i = 0; i < splitlen; i++) {
+        if ((yasllen(split[ i ]) == 2) && (memcmp(split[ i ], "$R", 2) == 0)) {
+            split[ i ] = rcpt;
+        }
+    }
+
+    if ((pexecv(split)) != VAC_RESULT_OK) {
+        syslog(LOG_ERR, "mail: pexecv of %s failed", split[ 0 ]);
+        return EX_TEMPFAIL;
     }
     /*
      * Our stdout should now be hooked up to sendmail's stdin.
@@ -612,7 +435,7 @@ sendmessage(char *myname, char *vmsg) {
      *  address that was used to send the subject message to that
      *  recipient.
      */
-    printf("From: %s <%s>\n", vlu->display_name(vluh, rcpt), myname);
+    printf("From: %s\n", sender);
 
     /* RFC 3834 3.1.3
      *  The To header field SHOULD indicate the recipient of the response.
@@ -620,7 +443,7 @@ sendmessage(char *myname, char *vmsg) {
      *  response.  This minimizes the potential for sorcerer's apprentice
      *  mode and denial-of-service attacks.
      */
-    printf("To: %s\n", canon_from);
+    printf("To: %s\n", canon_rcpt);
 
     /* RFC 3834 3.1.5
      *  The Subject field SHOULD contain a brief indication that the message
@@ -688,71 +511,5 @@ sendmessage(char *myname, char *vmsg) {
 
     printf("%s\n", vmsg);
 
-    return (0);
-}
-
-void
-usage(char *progname) {
-    syslog(LOG_NOTICE,
-            "usage: %s [-c conf_file] [-d] [-f from_address] [-r "
-            "refresh_interval]\n",
-            progname);
-    myexit(0);
-}
-
-
-void
-myexit(int retval) {
-    vdb->close(vdbh);
-    vlu->close(vluh);
-
-    exit(retval);
-}
-
-
-/*
- * Interface to pipe and exec, for starting children in pipelines.
- *
- * Manipulates file descriptors 0, 1, and 2, such that the new child
- * is reading from the parent's output.
- */
-int
-pexecv(char *path, char **argv) {
-    int fd[ 2 ], c;
-
-    if (pipe(fd) < 0) {
-        return (-1);
-    }
-
-    switch (c = vfork()) {
-    case -1:
-        return (-1);
-        /* NOTREACHED */
-
-    case 0:
-        if (close(fd[ 1 ]) < 0) {
-            return (-1);
-        }
-        if (dup2(fd[ 0 ], 0) < 0) {
-            return (-1);
-        }
-        if (close(fd[ 0 ]) < 0) {
-            return (-1);
-        }
-        execv(path, argv);
-        return (-1);
-        /* NOTREACHED */
-
-    default:
-        if (close(fd[ 0 ]) < 0) {
-            return (-1);
-        }
-        if (dup2(fd[ 1 ], 1) < 0) {
-            return (-1);
-        }
-        if (close(fd[ 1 ]) < 0) {
-            return (-1);
-        }
-        return (c);
-    }
+    return EX_OK;
 }

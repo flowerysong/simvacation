@@ -32,11 +32,12 @@ main(int argc, char **argv) {
     struct vdb_backend *vdb;
     VDB *               vdbh = NULL;
 
-    char *        config_file = NULL;
-    ucl_object_t *config;
+    char *config_file = NULL;
 
-    struct name_list *uniqnames;
-    struct name_list *u;
+    yastr               uniqname;
+    ucl_object_iter_t   i;
+    const ucl_object_t *uniqnames;
+    const ucl_object_t *obj;
 
     while ((ch = getopt(argc, argv, "c:d")) != EOF) {
         switch ((char)ch) {
@@ -62,49 +63,48 @@ main(int argc, char **argv) {
         openlog("simunvacation", LOG_PID, LOG_VACATION);
     }
 
-    if ((config = vacation_config(config_file)) == NULL) {
+    if (read_vacation_config(config_file) != VAC_RESULT_OK) {
         exit(1);
     }
 
     if ((vdb = vdb_backend(ucl_object_tostring(
-                 ucl_object_lookup_path(config, "core.vdb")))) == NULL) {
+                 ucl_object_lookup_path(vac_config, "core.vdb")))) == NULL) {
         exit(1);
     }
 
-    if ((vdbh = vdb->init(config, "simunvacation")) == NULL) {
+    if ((vdbh = vdb->init("simunvacation")) == NULL) {
         exit(1);
     }
 
     uniqnames = vdb->get_names(vdbh);
 
     if ((vlu = vlu_backend(ucl_object_tostring(
-                 ucl_object_lookup_path(config, "core.vlu")))) == NULL) {
+                 ucl_object_lookup_path(vac_config, "core.vlu")))) == NULL) {
         vdb->close(vdbh);
         exit(1);
     }
 
-    if ((vluh = vlu->init(config)) == NULL) {
+    if ((vluh = vlu->init()) == NULL) {
         vdb->close(vdbh);
         exit(1);
     }
 
-    /*
-     * For each candidate uniqname, check to see if user is
-     * still on vacation.  If not, tell the database to clean them up.
-     */
-    for (u = uniqnames; u; u = u->next) {
-        switch (vlu->search(vluh, u->name)) {
-        case VLU_RESULT_PERMFAIL:
-            syslog(LOG_INFO, "cleaning up %s", u->name);
-            vdb->clean(vdbh, u->name);
+    i = ucl_object_iterate_new(uniqnames);
+    while ((obj = ucl_object_iterate_safe(i, false)) != NULL) {
+        uniqname = yaslauto(ucl_object_tostring(obj));
+        switch (vlu->search(vluh, uniqname)) {
+        case VAC_RESULT_PERMFAIL:
+            syslog(LOG_INFO, "cleaning up %s", uniqname);
+            vdb->clean(vdbh, uniqname);
             break;
-        case VLU_RESULT_TEMPFAIL:
-            syslog(LOG_ERR, "lookup error processing %s", u->name);
+        case VAC_RESULT_TEMPFAIL:
+            syslog(LOG_ERR, "lookup error processing %s", uniqname);
             break;
         default:
-            syslog(LOG_DEBUG, "leaving %s alone", u->name);
+            syslog(LOG_DEBUG, "leaving %s alone", uniqname);
             break;
         }
+        yaslfree(uniqname);
     }
 
     /* Vacuum the database. */

@@ -1,7 +1,7 @@
 #ifndef BACKEND_VDB_H
 #define BACKEND_VDB_H
 
-#include <ucl.h>
+#include "simvacation.h"
 
 #ifdef HAVE_LMDB
 #include <lmdb.h>
@@ -11,6 +11,11 @@
 #include <urcl.h>
 #endif /* HAVE_URCL */
 
+
+typedef enum {
+    VDB_STATUS_OK,
+    VDB_STATUS_RECENT,
+} vdb_status;
 
 typedef struct vdb {
     union {
@@ -22,44 +27,42 @@ typedef struct vdb {
         MDB_env *lmdb;
 #endif /* HAVE_LMDB */
     };
-    char * rcpt;
-    time_t interval;
+    yastr rcpt;
 } VDB;
 
 struct vdb_backend {
-    VDB *(*init)(const ucl_object_t *, const char *);
+    VDB *(*init)(const yastr);
     void (*close)(VDB *);
-    int (*recent)(VDB *, char *);
-    int (*store_interval)(VDB *, time_t);
-    int (*store_reply)(VDB *, char *);
-    struct name_list *(*get_names)(VDB *);
-    void (*clean)(VDB *, char *);
+    vdb_status (*recent)(VDB *, const yastr);
+    vac_result (*store_reply)(VDB *, const yastr);
+    ucl_object_t *(*get_names)(VDB *);
+    void (*clean)(VDB *, const yastr);
     void (*gc)(VDB *);
 };
 
 struct vdb_backend *vdb_backend(const char *);
-VDB *               vdb_init(const ucl_object_t *, const char *);
+VDB *               vdb_init(const yastr);
 void                vdb_close(VDB *);
-int                 vdb_recent(VDB *, char *);
-int                 vdb_store_interval(VDB *, time_t);
-int                 vdb_store_reply(VDB *, char *);
-struct name_list *  vdb_get_names(VDB *);
-void                vdb_clean(VDB *, char *);
+vdb_status          vdb_recent(VDB *, const yastr);
+vac_result          vdb_store_reply(VDB *, const yastr);
+time_t              vdb_interval();
+ucl_object_t *      vdb_get_names(VDB *);
+void                vdb_clean(VDB *, const yastr);
 void                vdb_gc(VDB *);
 
 #ifdef HAVE_LMDB
-VDB *lmdb_vdb_init(const ucl_object_t *, const char *);
-void lmdb_vdb_close(VDB *);
-int  lmdb_vdb_recent(VDB *, char *);
-int  lmdb_vdb_store_reply(VDB *, char *);
-void lmdb_vdb_gc(VDB *);
+VDB *      lmdb_vdb_init(const yastr);
+void       lmdb_vdb_close(VDB *);
+vdb_status lmdb_vdb_recent(VDB *, const yastr);
+vac_result lmdb_vdb_store_reply(VDB *, const yastr);
+void       lmdb_vdb_gc(VDB *);
 #endif /* HAVE_LMDB */
 
 #ifdef HAVE_URCL
-VDB *redis_vdb_init(const ucl_object_t *, const char *);
-void redis_vdb_close(VDB *);
-int  redis_vdb_recent(VDB *, char *);
-int  redis_vdb_store_reply(VDB *, char *);
+VDB *      redis_vdb_init(const yastr);
+void       redis_vdb_close(VDB *);
+vdb_status redis_vdb_recent(VDB *, const yastr);
+vac_result redis_vdb_store_reply(VDB *, const yastr);
 #endif /* HAVE_URCL */
 
 #endif /* BACKEND_VDB_H */

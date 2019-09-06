@@ -53,7 +53,7 @@ vlu_backend(const char *provider) {
 }
 
 VLU *
-vlu_init(const ucl_object_t *config) {
+vlu_init() {
     VLU *vlu;
 
     if ((vlu = calloc(1, sizeof(VLU))) == NULL) {
@@ -64,38 +64,28 @@ vlu_init(const ucl_object_t *config) {
     return vlu;
 }
 
-vlu_result
-vlu_search(VLU *vlu, char *rcpt) {
-    return VLU_RESULT_OK;
+vac_result
+vlu_search(VLU *vlu, const yastr rcpt) {
+    return VAC_RESULT_OK;
 }
 
-struct name_list *
-vlu_aliases(VLU *vlu, char *rcpt) {
-    struct name_list *result;
-
-    if ((result = malloc(sizeof(struct name_list))) == NULL) {
-        syslog(LOG_ALERT, "vlu_aliases: malloc for name_list failed");
-        return NULL;
-    }
-
-    result->name = yaslauto(rcpt);
-    result->next = NULL;
-
-    return result;
+ucl_object_t *
+vlu_aliases(VLU *vlu, const yastr rcpt) {
+    return ucl_object_fromstring(rcpt);
 }
 
 yastr
-vlu_message(VLU *vlu, char *rcpt) {
+vlu_message(VLU *vlu, const yastr rcpt) {
     return NULL;
 }
 
 yastr
-vlu_name(VLU *vlu, char *rcpt) {
+vlu_name(VLU *vlu, const yastr rcpt) {
     return yaslauto(rcpt);
 }
 
 yastr
-vlu_display_name(VLU *vlu, char *rcpt) {
+vlu_display_name(VLU *vlu, const yastr rcpt) {
     return yaslauto(rcpt);
 }
 

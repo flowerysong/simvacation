@@ -20,7 +20,6 @@ vdb_backend(const char *provider) {
     functable->init = vdb_init;
     functable->close = vdb_close;
     functable->recent = vdb_recent;
-    functable->store_interval = vdb_store_interval;
     functable->store_reply = vdb_store_reply;
     functable->get_names = vdb_get_names;
     functable->clean = vdb_clean;
@@ -63,8 +62,8 @@ vdb_backend(const char *provider) {
 }
 
 VDB *
-vdb_init(const ucl_object_t *config, const char *rcpt) {
-    return (calloc(1, 1));
+vdb_init(const yastr rcpt) {
+    return calloc(1, 1);
 }
 
 void
@@ -73,29 +72,29 @@ vdb_close(VDB *vdb) {
     return;
 }
 
-int
-vdb_recent(VDB *vdb, char *from) {
-    return (0);
+vdb_status
+vdb_recent(VDB *vdb, const yastr from) {
+    return VDB_STATUS_OK;
 }
 
-int
-vdb_store_interval(VDB *vdb, time_t interval) {
-    vdb->interval = interval;
-    return (0);
+time_t
+vdb_interval() {
+    return (time_t)ucl_object_todouble(
+            ucl_object_lookup_path(vac_config, "core.interval"));
 }
 
-int
-vdb_store_reply(VDB *vdb, char *from) {
-    return (0);
+vac_result
+vdb_store_reply(VDB *vdb, const yastr from) {
+    return VAC_RESULT_OK;
 }
 
-struct name_list *
+ucl_object_t *
 vdb_get_names(VDB *vdb) {
-    return (NULL);
+    return ucl_object_typed_new(UCL_ARRAY);
 }
 
 void
-vdb_clean(VDB *vdb, char *user) {
+vdb_clean(VDB *vdb, const yastr user) {
     return;
 }
 

@@ -20,22 +20,22 @@
 #include "simvacation.h"
 #include "vdb.h"
 
-static char *redis_vdb_key(char *, char *);
+static yastr redis_vdb_key(const yastr, const yastr);
 
 VDB *
-redis_vdb_init(const ucl_object_t *config, const char *rcpt) {
+redis_vdb_init(const yastr rcpt) {
     VDB *       vdb;
     VDB *       res = NULL;
     const char *host = "127.0.0.1";
     int64_t     port = 6379;
 
     if (!ucl_object_tostring_safe(
-                ucl_object_lookup_path(config, "redis.host"), &host)) {
+                ucl_object_lookup_path(vac_config, "redis.host"), &host)) {
         syslog(LOG_ERR, "vdb_init: ucl_object_tostring_safe failed");
         goto error;
     }
     if (!ucl_object_toint_safe(
-                ucl_object_lookup_path(config, "redis.port"), &port)) {
+                ucl_object_lookup_path(vac_config, "redis.port"), &port)) {
         syslog(LOG_ERR, "vdb_init: ucl_object_toint_safe failed");
         goto error;
     }
@@ -49,8 +49,7 @@ redis_vdb_init(const ucl_object_t *config, const char *rcpt) {
         goto error;
     }
 
-    vdb->interval = SECSPERDAY * DAYSPERWEEK;
-    vdb->rcpt = strdup(rcpt);
+    vdb->rcpt = yasldup(rcpt);
 
     res = vdb;
 
@@ -59,7 +58,7 @@ error:
         redis_vdb_close(vdb);
     }
 
-    return (res);
+    return res;
 }
 
 void
@@ -72,15 +71,15 @@ redis_vdb_close(VDB *vdb) {
     }
 }
 
-int
-redis_vdb_recent(VDB *vdb, char *from) {
-    int         retval = 0;
+vdb_status
+redis_vdb_recent(VDB *vdb, const yastr from) {
+    int         retval = VDB_STATUS_OK;
     time_t      last, now;
-    char *      key;
+    yastr       key;
     redisReply *res = NULL;
 
     if ((key = redis_vdb_key(vdb->rcpt, from)) == NULL) {
-        return (0);
+        return retval;
     }
 
     if (((res = urcl_command(vdb->redis, key, "GET %s", key)) == NULL) ||
@@ -92,8 +91,8 @@ redis_vdb_recent(VDB *vdb, char *from) {
 
     if ((now = time(NULL)) < 0) {
         syslog(LOG_ALERT, "redis vdb_recent time: %m");
-    } else if (now < (last + vdb->interval)) {
-        retval = 1;
+    } else if (now < (last + vdb_interval())) {
+        retval = VDB_STATUS_RECENT;
     } else {
         /* This shouldn't happen, so let's clean it up */
         urcl_free_result(urcl_command(vdb->redis, key, "DEL %s", key));
@@ -101,40 +100,39 @@ redis_vdb_recent(VDB *vdb, char *from) {
 
 cleanup:
     urcl_free_result(res);
-    free(key);
-    return (retval);
+    yaslfree(key);
+    return retval;
 }
 
-int
-redis_vdb_store_reply(VDB *vdb, char *from) {
+vac_result
+redis_vdb_store_reply(VDB *vdb, const yastr from) {
     time_t now;
-    char * key;
+    yastr  key;
     char   value[ 16 ];
     char   expire[ 16 ];
 
     if ((now = time(NULL)) < 0) {
         syslog(LOG_ALERT, "redis vdb_store_reply time: %m");
-        return (1);
+        return VAC_RESULT_TEMPFAIL;
     }
 
     key = redis_vdb_key(vdb->rcpt, from);
     snprintf(value, 16, "%lld", (long long)now);
-    snprintf(expire, 16, "%lld", (long long)vdb->interval);
+    snprintf(expire, 16, "%lld", (long long)vdb_interval());
 
     urcl_free_result(urcl_command(vdb->redis, key, "SET %s %s", key, value));
     urcl_free_result(
             urcl_command(vdb->redis, key, "EXPIRE %s %s", key, expire));
 
-    return (0);
+    return VAC_RESULT_OK;
 }
 
-static char *
-redis_vdb_key(char *rcpt, char *from) {
-    char key[ 128 ];
-
-    snprintf(key, 128, "simvacation:user:%s:%" PRIx64, rcpt,
-            rabin_fingerprint(from, strlen(from)));
+static yastr
+redis_vdb_key(const yastr rcpt, const yastr from) {
+    yastr key = yaslauto("simvacation:user:");
+    key = yaslcatprintf(
+            key, "%s:%lx", rcpt, (long)rabin_fingerprint(from, yasllen(from)));
     syslog(LOG_DEBUG, "redis_vdb_key: %s", key);
 
-    return (strdup(key));
+    return key;
 }

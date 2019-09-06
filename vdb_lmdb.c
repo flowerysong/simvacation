@@ -20,11 +20,11 @@
 #include "simvacation.h"
 #include "vdb.h"
 
-char *lmdb_vdb_key(char *, char *);
+yastr lmdb_vdb_key(const yastr, const yastr);
 void  lmdb_vdb_assert(MDB_env *, const char *);
 
 VDB *
-lmdb_vdb_init(const ucl_object_t *config, const char *rcpt) {
+lmdb_vdb_init(const yastr rcpt) {
     int  rc;
     VDB *vdb;
 
@@ -49,20 +49,21 @@ lmdb_vdb_init(const ucl_object_t *config, const char *rcpt) {
         goto error;
     }
 
-    /* FIXME: location should be configurable */
-    if ((rc = mdb_env_open(vdb->lmdb, "/var/lib/simvacation", 0, 0664)) != 0) {
+    if ((rc = mdb_env_open(vdb->lmdb,
+                 ucl_object_tostring(
+                         ucl_object_lookup_path(vac_config, "ldmb.path")),
+                 0, 0664)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_init mdb_env_open: %s", mdb_strerror(rc));
         goto error;
     }
 
-    vdb->interval = SECSPERDAY * DAYSPERWEEK;
-    vdb->rcpt = strdup(rcpt);
+    vdb->rcpt = yasldup(rcpt);
 
-    return (vdb);
+    return vdb;
 
 error:
     vdb_close(vdb);
-    return (NULL);
+    return NULL;
 }
 
 void
@@ -82,24 +83,24 @@ lmdb_vdb_close(VDB *vdb) {
     }
 }
 
-int
-lmdb_vdb_recent(VDB *vdb, char *from) {
-    int      rc, retval = 0;
+vdb_status
+lmdb_vdb_recent(VDB *vdb, const yastr from) {
+    int      rc, retval = VDB_STATUS_OK;
     time_t   last, now;
     MDB_txn *txn;
     MDB_dbi  dbi;
     MDB_val  key, data;
-    char *   keyval = NULL;
+    yastr    keyval = NULL;
 
     if ((keyval = lmdb_vdb_key(vdb->rcpt, from)) == NULL) {
-        return (0);
+        return VDB_STATUS_OK;
     }
 
     if ((rc = mdb_txn_begin(vdb->lmdb, NULL, MDB_RDONLY, &txn)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_recent mdb_txn_begin: %s",
                 mdb_strerror(rc));
-        free(keyval);
-        return (0);
+        yaslfree(keyval);
+        return VDB_STATUS_OK;
     }
 
     if ((rc = mdb_dbi_open(txn, NULL, MDB_CREATE, &dbi)) != 0) {
@@ -107,7 +108,7 @@ lmdb_vdb_recent(VDB *vdb, char *from) {
         goto cleanup;
     }
 
-    key.mv_size = strlen(keyval);
+    key.mv_size = yasllen(keyval);
     key.mv_data = keyval;
 
     if ((rc = mdb_get(txn, dbi, &key, &data)) != 0) {
@@ -126,18 +127,18 @@ lmdb_vdb_recent(VDB *vdb, char *from) {
 
     if ((now = time(NULL)) < 0) {
         syslog(LOG_ALERT, "lmdb vdb_recent time: %m");
-    } else if (now < (last + vdb->interval)) {
-        retval = 1;
+    } else if (now < (last + vdb_interval())) {
+        retval = VDB_STATUS_RECENT;
     }
 
 cleanup:
-    free(keyval);
+    yaslfree(keyval);
     mdb_txn_abort(txn);
     return (retval);
 }
 
-int
-lmdb_vdb_store_reply(VDB *vdb, char *from) {
+vac_result
+lmdb_vdb_store_reply(VDB *vdb, const yastr from) {
     int      rc;
     time_t   now;
     MDB_txn *txn;
@@ -147,20 +148,20 @@ lmdb_vdb_store_reply(VDB *vdb, char *from) {
 
     if ((now = time(NULL)) < 0) {
         syslog(LOG_ALERT, "lmdb vdb_store_reply time: %m");
-        return (1);
+        return VAC_RESULT_TEMPFAIL;
     }
 
     if ((rc = mdb_txn_begin(vdb->lmdb, NULL, 0, &txn)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_store_reply mdb_txn_begin: %s",
                 mdb_strerror(rc));
-        return (1);
+        return VAC_RESULT_TEMPFAIL;
     }
 
     if ((rc = mdb_dbi_open(txn, NULL, MDB_CREATE, &dbi)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_store_reply mdb_dbi_open: %s",
                 mdb_strerror(rc));
         mdb_txn_abort(txn);
-        return (1);
+        return VAC_RESULT_TEMPFAIL;
     }
 
     keyval = lmdb_vdb_key(vdb->rcpt, from);
@@ -173,16 +174,16 @@ lmdb_vdb_store_reply(VDB *vdb, char *from) {
     if ((rc = mdb_put(txn, dbi, &key, &data, 0)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_store_reply mdb_put: %s", mdb_strerror(rc));
         mdb_txn_abort(txn);
-        return (1);
+        return VAC_RESULT_TEMPFAIL;
     }
 
     if ((rc = mdb_txn_commit(txn)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_store_reply mdb_txn_commit: %s",
                 mdb_strerror(rc));
-        return (1);
+        return VAC_RESULT_TEMPFAIL;
     }
 
-    return (0);
+    return VAC_RESULT_OK;
 }
 
 void
@@ -199,7 +200,7 @@ lmdb_vdb_gc(VDB *vdb) {
         return;
     }
 
-    expire = expire - vdb->interval;
+    expire = expire - vdb_interval();
 
     if ((rc = mdb_txn_begin(vdb->lmdb, NULL, 0, &txn)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_gc mdb_txn_begin: %s", mdb_strerror(rc));
@@ -236,14 +237,15 @@ lmdb_vdb_gc(VDB *vdb) {
     }
 }
 
-char *
-lmdb_vdb_key(char *rcpt, char *from) {
+yastr
+lmdb_vdb_key(const yastr rcpt, const yastr from) {
+    yastr ret = yaslauto("user:");
+    ret = yaslcatprintf(
+            ret, "%s:%lx", rcpt, (long)rabin_fingerprint(from, yasllen(from)));
     /* MDB_MAXKEYSIZE. 511 is the (old?) default and should be safe. */
-    char key[ 511 ];
+    yaslrange(ret, 0, 511);
 
-    snprintf(key, 511, "user:%s:%" PRIx64, rcpt,
-            rabin_fingerprint(from, strlen(from)));
-    syslog(LOG_DEBUG, "lmdb_vdb_key: %s", key);
+    syslog(LOG_DEBUG, "lmdb_vdb_key: %s", ret);
 
-    return (strdup(key));
+    return ret;
 }
