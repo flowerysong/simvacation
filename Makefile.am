@@ -11,6 +11,8 @@ AM_LDFLAGS = \
 
 AM_CPPFLAGS = \
 	@CPPFLAGS@ \
+	$(LIBUCL_CFLAGS) \
+	$(URCL_CFLAGS) \
 	@LDAP_CPPFLAGS@
 
 bin_PROGRAMS = simvacation simunvacation
