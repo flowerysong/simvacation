@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import errno
 import json
 import os
@@ -7,57 +9,60 @@ import subprocess
 import tempfile
 import time
 
+from email.mime.text import MIMEText
+
 import pytest
 
 
 def pytest_collect_file(parent, path):
-    if os.access(str(path), os.X_OK):
-        if path.basename.startswith('int_'):
-            return ExternalFile(path, parent)
-        if path.basename.startswith('cmocka_'):
-            return CMockaFile(path, parent)
+    if os.access(str(path), os.X_OK) and path.basename.startswith('cmocka_'):
+        return CMockaFile.from_parent(parent, fspath=path)
 
 
 class CMockaFile(pytest.File):
     def collect(self):
-        os.environ['CMOCKA_MESSAGE_OUTPUT'] = 'TAP'
-        try:
-            out = subprocess.check_output(str(self.fspath))
-        except:
-            # This is inefficient and will run the test twice, but eh.
-            yield ExternalItem(self.fspath.basename, self, str(self.fspath))
-        else:
-            for line in out.split('\n'):
-                if not line.startswith('ok'):
-                    continue
-                yield CMockaItem(self, line)
+        out = subprocess.run(
+            str(self.fspath),
+            env={
+                'CMOCKA_MESSAGE_OUTPUT': 'TAP',
+            },
+            capture_output=True,
+            text=True,
+        )
+        lines = out.stdout.splitlines()
+        plan = lines[0].split('..')
+        if len(plan) != 2:
+            yield(CMockaItem.from_parent(self, line='not ok - cmocka', output=out.stdout))
+            plan = ('', '0')
+
+        count = 0
+        for line in lines[1:]:
+            if not line.startswith('ok') and not line.startswith('not ok'):
+                continue
+            count += 1
+            yield CMockaItem.from_parent(self, line=line, output=out.stdout)
+
+        if count != int(plan[1]):
+            yield(CMockaItem.from_parent(self, line='not ok - cmocka_tap_plan', output=out.stdout))
+
 
 class CMockaItem(pytest.Item):
-    def __init__(self, parent, line):
+    def __init__(self, parent, line, output=None):
         name = line.split(' - ')[1]
         super(CMockaItem, self).__init__(name, parent)
         self.line = line
+        self.output = output
 
     def runtest(self):
-        pass
-
-
-class ExternalFile(pytest.File):
-    def collect(self):
-        yield ExternalItem(self.fspath.basename, self, str(self.fspath))
-
-
-class ExternalItem(pytest.Item):
-    def __init__(self, name, parent, execpath):
-        super(ExternalItem, self).__init__(name, parent)
-        self.execpath = execpath
-
-    def runtest(self):
-        subprocess.check_output(self.execpath)
+        if self.line.startswith('not ok'):
+            raise CMockaException(self)
 
     def repr_failure(self, excinfo):
-        if isinstance(excinfo.value, subprocess.CalledProcessError):
-            return excinfo.value.output
+        if isinstance(excinfo.value, CMockaException):
+            return self.output
+
+class CMockaException(Exception):
+    """ custom exception """
 
 
 def openport(port):
@@ -72,35 +77,34 @@ def openport(port):
             return( port )
 
 
-@pytest.fixture
 def redis():
     port = openport(6379)
 
-    devnull = open(os.devnull, 'w')
-    redis_proc = None
-    try:
-        redis_proc = subprocess.Popen(['redis-server', '--port', str(port)], stdout=devnull, stderr=devnull)
-    except OSError as e:
-        if e.errno != errno.ENOENT:
-            raise
-        pytest.skip('redis-server not found')
-
-    running = False
-    i = 0
-    while not running:
-        i += 1
+    with open(os.devnull, 'w') as devnull:
+        redis_proc = None
         try:
-            conn = socket.create_connection(('localhost', port), 0.1)
-            running = True
-        except socket.error:
-            if i > 20:
+            redis_proc = subprocess.Popen(['redis-server', '--port', str(port)], stdout=devnull, stderr=devnull)
+        except OSError as e:
+            if e.errno != errno.ENOENT:
                 raise
-            time.sleep(0.1)
+            return None
 
-    yield(port)
+        running = False
+        i = 0
+        while not running:
+            i += 1
+            try:
+                conn = socket.create_connection(('localhost', port), 0.1)
+                running = True
+            except socket.error:
+                if i > 20:
+                    raise
+                time.sleep(0.1)
 
-    if redis_proc:
-        redis_proc.terminate()
+        return({
+            'port': port,
+            'proc': redis_proc,
+        })
 
 
 @pytest.fixture(scope='session')
@@ -110,3 +114,74 @@ def tool_path():
         binpath = os.path.join(binpath, '..', tool)
         return os.path.realpath(binpath)
     return _tool_path
+
+
+@pytest.fixture(
+    params=[
+        'lmdb',
+        'null',
+        'redis',
+    ],
+)
+def run_simvacation(request, tmp_path_factory, tool_path):
+    tmpdir = str(tmp_path_factory.mktemp('simvacation'))
+    cfile = os.path.join(tmpdir, 'simvacation.conf')
+
+    config = {
+        'core': {
+            'vdb': request.param,
+            'vlu': 'null',
+            'interval': 10,
+            'sendmail': tool_path('test/sendmail') + ' -f "" $R',
+        },
+        'redis': {
+            'host': '127.0.0.1',
+        },
+        'lmdb': {
+            'path': os.path.join(tmpdir, 'lmdb'),
+        }
+    }
+
+    redconf = None
+    if request.param == 'redis':
+        redconf = redis()
+        if not redconf:
+            pytest.skip('redis-server not found')
+        config['redis']['port'] = redconf['port']
+
+    elif request.param == 'lmdb':
+        os.mkdir(config['lmdb']['path'])
+
+    with open(cfile, 'w') as f:
+        f.write(json.dumps(config, indent=4))
+
+    def _run_simvacation(sender, rcpt, msg, outdir):
+        return subprocess.run(
+            [
+                tool_path('simvacation'),
+                '-c', cfile,
+                '-f', sender,
+                rcpt,
+            ],
+            env={
+                'PYTEST_TMPDIR': outdir,
+            },
+            input=msg,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    yield _run_simvacation
+
+    if redconf:
+        redconf['proc'].terminate()
+
+
+@pytest.fixture
+def testmsg(request):
+    msg = MIMEText(request.function.__name__)
+    msg['Subject'] = 'simta test message for {}'.format(request.function.__name__)
+    msg['From'] = 'testsender@example.com'
+    msg['To'] = 'testrcpt@example.com'
+    return msg

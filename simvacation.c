@@ -85,7 +85,7 @@ main(int argc, char **argv) {
     argv += optind;
 
     if ((!*argv) || (retval != EX_OK)) {
-        fprintf(stderr, "usage: %s [-c conf_file] [-d] [-f from_address]\n",
+        fprintf(stderr, "usage: %s [-c conf_file] [-d] [-f from_address] to_address\n",
                 progname);
         retval = EX_USAGE;
         goto done;
@@ -113,7 +113,6 @@ main(int argc, char **argv) {
         retval = EX_TEMPFAIL;
         goto done;
     }
-
 
     if ((vluh = vlu->init()) == NULL) {
         retval = EX_TEMPFAIL;
@@ -403,7 +402,7 @@ send_message(yastr sender, yastr rcpt, yastr canon_rcpt, yastr vmsg,
                                   vac_config, "core.sendmail")),
             &splitlen);
 
-    split = realloc(split, splitlen + 1 * sizeof(yastr));
+    split = realloc(split, (splitlen + 1) * sizeof(yastr));
     split[ splitlen ] = NULL;
 
     /* Replace placeholder with recipient */

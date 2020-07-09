@@ -3,6 +3,7 @@
  * See COPYING.
  */
 
+#include <sysexits.h>
 #include <syslog.h>
 #include <unistd.h>
 
@@ -65,22 +66,22 @@ pexecv(yastr *argv) {
         return VAC_RESULT_TEMPFAIL;
     }
 
-    switch (vfork()) {
+    switch (fork()) {
     case -1:
         return VAC_RESULT_TEMPFAIL;
 
     case 0:
         if (close(fd[ 1 ]) < 0) {
-            return VAC_RESULT_TEMPFAIL;
+            exit(EX_TEMPFAIL);
         }
         if (dup2(fd[ 0 ], 0) < 0) {
-            return VAC_RESULT_TEMPFAIL;
+            exit(EX_TEMPFAIL);
         }
         if (close(fd[ 0 ]) < 0) {
-            return VAC_RESULT_TEMPFAIL;
+            exit(EX_TEMPFAIL);
         }
         execv(binary, argv);
-        return VAC_RESULT_TEMPFAIL;
+        exit(EX_TEMPFAIL);
 
     default:
         if (close(fd[ 0 ]) < 0) {

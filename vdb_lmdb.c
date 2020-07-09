@@ -25,11 +25,18 @@ void  lmdb_vdb_assert(MDB_env *, const char *);
 
 VDB *
 lmdb_vdb_init(const yastr rcpt) {
-    int  rc;
-    VDB *vdb;
+    int   rc;
+    VDB * vdb;
+    const char *lmdb_path;
+
+    if ((lmdb_path = ucl_object_tostring(
+                 ucl_object_lookup_path(vac_config, "lmdb.path"))) == NULL) {
+        syslog(LOG_ALERT, "lmdb vdb_init: no path configured");
+        return NULL;
+    }
 
     if ((vdb = calloc(1, sizeof(VDB))) == NULL) {
-        return (NULL);
+        return NULL;
     }
 
     if ((rc = mdb_env_create(&vdb->lmdb)) != 0) {
@@ -49,10 +56,7 @@ lmdb_vdb_init(const yastr rcpt) {
         goto error;
     }
 
-    if ((rc = mdb_env_open(vdb->lmdb,
-                 ucl_object_tostring(
-                         ucl_object_lookup_path(vac_config, "ldmb.path")),
-                 0, 0664)) != 0) {
+    if ((rc = mdb_env_open(vdb->lmdb, lmdb_path, 0, 0664)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_init mdb_env_open: %s", mdb_strerror(rc));
         goto error;
     }

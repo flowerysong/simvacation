@@ -11,6 +11,8 @@ static void
 test_canon_from_noop(void **state) {
     assert_string_equal(
             canon_from(yaslauto("foo@example.com")), "foo@example.com");
+    assert_string_equal(canon_from(yaslauto("\"foo bar\"@example.com")),
+            "\"foo bar\"@example.com");
 }
 
 static void
@@ -20,13 +22,48 @@ test_canon_from_srs(void **state) {
                     "SRS0=gfkgj=fp=subdomain.example.edu=foo@example.edu")),
             "foo@subdomain.example.edu");
 
+    /* Alternate initial separators */
+    assert_string_equal(
+            canon_from(yaslauto(
+                    "SRS0+gfkgj=fp=subdomain.example.edu=foo@example.edu")),
+            "foo@subdomain.example.edu");
+    assert_string_equal(
+            canon_from(yaslauto(
+                    "SRS0-gfkgj=fp=subdomain.example.edu=foo@example.edu")),
+            "foo@subdomain.example.edu");
+
+    /* Quoted localpart */
+    assert_string_equal(canon_from(yaslauto("\"SRS0=gfkgj=fp=subdomain.example."
+                                            "edu=foo bar\"@example.edu")),
+            "\"foo bar\"@subdomain.example.edu");
+
     /* SRS can also use different schemes, in which case we can't reverse it. */
     assert_string_equal(
             canon_from(yaslauto("SRS0=thisisreallyanopaquestring@example.edu")),
             "SRS0=thisisreallyanopaquestring@example.edu");
+    assert_string_equal(
+            canon_from(yaslauto("\"SRS0=this is really an opaque string\"@example.edu")),
+            "\"SRS0=this is really an opaque string\"@example.edu");
 
+    /* Reforwarded */
     assert_string_equal(
             canon_from(yaslauto("SRS1=re2xz=example.com==gfkgj=fp=subdomain."
+                                "example.edu=foo@example.edu")),
+            "foo@subdomain.example.edu");
+    assert_string_equal(
+            canon_from(yaslauto("SRS1+re2xz=example.com==gfkgj=fp=subdomain."
+                                "example.edu=foo@example.edu")),
+            "foo@subdomain.example.edu");
+    assert_string_equal(
+            canon_from(yaslauto("SRS1-re2xz=example.com==gfkgj=fp=subdomain."
+                                "example.edu=foo@example.edu")),
+            "foo@subdomain.example.edu");
+    assert_string_equal(
+            canon_from(yaslauto("SRS1=re2xz=example.com=+gfkgj=fp=subdomain."
+                                "example.edu=foo@example.edu")),
+            "foo@subdomain.example.edu");
+    assert_string_equal(
+            canon_from(yaslauto("SRS1=re2xz=example.com=-gfkgj=fp=subdomain."
                                 "example.edu=foo@example.edu")),
             "foo@subdomain.example.edu");
 }

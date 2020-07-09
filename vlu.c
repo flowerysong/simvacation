@@ -38,6 +38,7 @@ vlu_backend(const char *provider) {
         functable->aliases = ldap_vlu_aliases;
         functable->name = ldap_vlu_name;
         functable->display_name = ldap_vlu_display_name;
+        return functable;
 #else  /* HAVE_LDAP */
         syslog(LOG_ERR, "vlu_backend: LDAP was disabled during compilation");
         return NULL;
