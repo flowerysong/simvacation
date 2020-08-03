@@ -7,6 +7,15 @@
 #include "vutil.h"
 #include "yasl.h"
 
+
+static void
+test_is_substring(void **state) {
+    assert_true(is_substring("foo", "foobar", false));
+    assert_true(is_substring("Foo", "fOo", false));
+    assert_false(is_substring("foo bar baz", "foo.bar_baz", false));
+    assert_true(is_substring("foo bar baz", "foo.bar_baz", true));
+}
+
 static void
 test_canon_from_noop(void **state) {
     assert_string_equal(
@@ -109,6 +118,7 @@ test_check_from_mailsystem(void **state) {
 int
 main(void) {
     const struct CMUnitTest tests[] = {
+            cmocka_unit_test(test_is_substring),
             cmocka_unit_test(test_canon_from_noop),
             cmocka_unit_test(test_canon_from_srs),
             cmocka_unit_test(test_canon_from_batv),
