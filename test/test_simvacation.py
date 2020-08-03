@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import time
 
 from email.parser import Parser as EMailParser
 
@@ -71,6 +72,28 @@ def test_simple(run_simvacation, testmsg, tmp_path_factory):
         'I am currently out of email contact.',
         'Your mail will be read when I return.',
     ]
+
+
+def test_suppress(run_simvacation, testmsg, tmp_path_factory):
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory)
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory)
+
+    assert res['args'] == None
+    assert res['content'] == None
+
+
+def test_suppress_interval(run_simvacation, testmsg, tmp_path_factory):
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory)
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory)
+
+    assert res['args'] == None
+    assert res['content'] == None
+
+    time.sleep(2)
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory)
+
+    assert res['args']
+    assert res['content']
 
 
 def test_ldap_simple(run_simvacation, testmsg, tmp_path_factory):

@@ -131,7 +131,7 @@ def run_simvacation(request, tmp_path_factory, tool_path):
         'core': {
             'vdb': request.param,
             'vlu': 'null',
-            'interval': 10,
+            'interval': 2,
             'sendmail': tool_path('test/sendmail') + ' -f "" $R',
             'domain': 'example.com',
         },
@@ -152,6 +152,9 @@ def run_simvacation(request, tmp_path_factory, tool_path):
 
     elif request.param == 'lmdb':
         os.mkdir(config['lmdb']['path'])
+
+    elif 'suppress' in request.function.__name__:
+        pytest.xfail('The null VDB does not support storing state')
 
     if 'ldap' in request.function.__name__:
         server = os.environ.get('LDAP_SERVER')
