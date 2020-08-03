@@ -201,7 +201,22 @@ ldap_vlu_message(VLU *vlu, const yastr rcpt) {
 
 yastr
 ldap_vlu_name(VLU *vlu, const yastr rcpt) {
-    return yaslauto(ldap_get_dn(vlu->ldap->ld, vlu->ldap->result));
+    char * dn;
+    LDAPDN ldn = NULL;
+    yastr  retval = NULL;
+
+    dn = ldap_get_dn(vlu->ldap->ld, vlu->ldap->result);
+    if (ldap_str2dn(dn, &ldn, LDAP_DN_FORMAT_LDAPV3) != LDAP_SUCCESS) {
+        syslog(LOG_ERR,
+                "Liberror: ldap_vlu_name ldap_str2dn: failed to parse %s", dn);
+        retval = rcpt;
+    } else {
+        retval = yaslnew(
+                (*ldn[ 0 ])->la_value.bv_val, (*ldn[ 0 ])->la_value.bv_len);
+    }
+    ldap_dnfree(ldn);
+    ldap_memfree(dn);
+    return (retval);
 }
 
 yastr
