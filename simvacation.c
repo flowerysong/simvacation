@@ -85,7 +85,8 @@ main(int argc, char **argv) {
     argv += optind;
 
     if ((!*argv) || (retval != EX_OK)) {
-        fprintf(stderr, "usage: %s [-c conf_file] [-d] [-f from_address] to_address\n",
+        fprintf(stderr,
+                "usage: %s [-c conf_file] [-d] [-f from_address] to_address\n",
                 progname);
         retval = EX_USAGE;
         goto done;

@@ -25,8 +25,8 @@ void  lmdb_vdb_assert(MDB_env *, const char *);
 
 VDB *
 lmdb_vdb_init(const yastr rcpt) {
-    int   rc;
-    VDB * vdb;
+    int         rc;
+    VDB *       vdb;
     const char *lmdb_path;
 
     if ((lmdb_path = ucl_object_tostring(

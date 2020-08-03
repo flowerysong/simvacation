@@ -133,6 +133,7 @@ def run_simvacation(request, tmp_path_factory, tool_path):
             'vlu': 'null',
             'interval': 10,
             'sendmail': tool_path('test/sendmail') + ' -f "" $R',
+            'domain': 'example.com',
         },
         'redis': {
             'host': '127.0.0.1',
@@ -151,6 +152,16 @@ def run_simvacation(request, tmp_path_factory, tool_path):
 
     elif request.param == 'lmdb':
         os.mkdir(config['lmdb']['path'])
+
+    if 'ldap' in request.function.__name__:
+        server = os.environ.get('LDAP_SERVER')
+        if not server:
+            pytest.skip('Environment variable LDAP_SERVER is not set')
+        config['core']['vlu'] = 'ldap'
+        config['ldap'] = {
+            'uri': server,
+            'search_base': 'ou=People,dc=example,dc=com',
+        }
 
     with open(cfile, 'w') as f:
         f.write(json.dumps(config, indent=4))

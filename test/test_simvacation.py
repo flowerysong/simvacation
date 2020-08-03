@@ -9,6 +9,42 @@ from email.parser import Parser as EMailParser
 import pytest
 
 
+def _run_simvacation(
+    run_simvacation,
+    testmsg,
+    tmp_path_factory,
+    sender='testsender@example.com',
+    rcpt='testrcpt',
+):
+    tmpdir = str(tmp_path_factory.mktemp('mailout'))
+    res = run_simvacation(
+        sender,
+        rcpt,
+        str(testmsg),
+        tmpdir,
+    )
+
+    args = None
+    content = None
+
+    try:
+        with open(os.path.join(tmpdir, 'sendmail.args'), 'r') as f:
+            args = json.load(f)
+    except FileNotFoundError:
+        pass
+
+    try:
+        with open(os.path.join(tmpdir, 'sendmail.input'), 'r') as f:
+            content = EMailParser().parse(f)
+    except FileNotFoundError:
+        pass
+
+    return {
+        'args': args,
+        'content': content,
+    }
+
+
 def test_config_nonexist(tool_path):
     res = subprocess.run(
         [
@@ -22,26 +58,53 @@ def test_config_nonexist(tool_path):
 
 
 def test_simple(run_simvacation, testmsg, tmp_path_factory):
-    tmpdir = str(tmp_path_factory.mktemp('mailout'))
-    res = run_simvacation(
-        'testsender@example.com',
-        'testrcpt',
-        str(testmsg),
-        tmpdir,
-    )
-    with open(os.path.join(tmpdir, 'sendmail.args'), 'r') as f:
-        args = json.load(f)
-    with open(os.path.join(tmpdir, 'sendmail.input'), 'r') as f:
-        content = EMailParser().parse(f)
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory)
 
-    assert args[2] == ''
-    assert args[3] == 'testsender@example.com'
+    assert res['args'][2] == ''
+    assert res['args'][3] == 'testsender@example.com'
 
-    assert content['from'] == '"testrcpt" <testrcpt@umich.edu>'
-    assert content['to'] == 'testsender@example.com'
-    assert content['subject'] == 'Out of email contact (Re: simta test message for test_simple)'
-    assert content['auto-submitted'] == 'auto-replied'
-    assert content.get_payload().splitlines() == [
+    assert res['content']['from'] == '"testrcpt" <testrcpt@example.com>'
+    assert res['content']['to'] == 'testsender@example.com'
+    assert res['content']['subject'] == 'Out of email contact (Re: simta test message for test_simple)'
+    assert res['content']['auto-submitted'] == 'auto-replied'
+    assert res['content'].get_payload().splitlines() == [
         'I am currently out of email contact.',
         'Your mail will be read when I return.',
     ]
+
+
+def test_ldap_simple(run_simvacation, testmsg, tmp_path_factory):
+    testmsg['To'] = 'onvacation@example.com'
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt='onvacation')
+
+    assert res['content']['from'] == '"onvacation" <onvacation@example.com>'
+    assert res['content'].get_payload().splitlines() == [
+        'I am currently out of email contact.',
+        'Your mail will be read when I return.',
+    ]
+
+
+def test_ldap_not_to(run_simvacation, testmsg, tmp_path_factory):
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt='onvacation')
+
+    assert res['args'] == None
+    assert res['content'] == None
+
+
+def test_ldap_custom(run_simvacation, testmsg, tmp_path_factory):
+    testmsg['To'] = 'customvacation@example.com'
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt='customvacation')
+
+    assert res['content']['from'] == '"Testy User" <customvacation@example.com>'
+    assert res['content'].get_payload().splitlines() == [
+        'I am out of the office for till college.',
+        'Please contact the uncaring universe (-dev.null@umich.edu) for assistance.',
+    ]
+
+
+def test_ldap_not_on_vacation(run_simvacation, testmsg, tmp_path_factory):
+    testmsg['To'] = 'flowerysong@example.com'
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt='flowerysong')
+
+    assert res['args'] == None
+    assert res['content'] == None

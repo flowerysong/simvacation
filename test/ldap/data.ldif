@@ -1,0 +1,72 @@
+dn: dc=example,dc=com
+objectclass: dcObject
+objectclass: organization
+o: simta testing
+dc: example
+
+dn: cn=Manager,dc=example,dc=com
+objectClass: organizationalRole
+cn: Manager
+
+dn: ou=Groups,dc=example,dc=com
+ou: Groups
+objectClass: organizationalUnit
+
+dn: ou=People,dc=example,dc=com
+ou: People
+objectClass: organizationalUnit
+
+dn: uid=flowerysong,ou=People,dc=example,dc=com
+cn: flowerysong
+cn: a flowery song
+sn: marwnad
+mail: flowerysong@example.com
+uid: flowerysong
+objectClass: umichPerson
+entityID: 1
+
+dn: uid=postmaster,ou=People,dc=example,dc=com
+cn: postmaster
+sn: master
+mail: postmaster@example.com
+uid: postmaster
+objectClass: umichPerson
+entityID: 2
+mailForwardingAddress: postmast@forwarded.example.com
+
+dn: uid=onvacation,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+sn: User
+uid: onvacation
+mail: onvacation@example.com
+mailForwardingAddress: onvacation@forwarded.example.com
+onvacation: TRUE
+objectClass: umichPerson
+entityID: 9001
+
+dn: uid=customvacation,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+displayName: Testy User
+sn: User
+uid: customvacation
+mail: customvacation@example.com
+mailForwardingAddress: customvacation@forwarded.example.com
+onvacation: TRUE
+vacationMessage: I am out of the office for till college.$Please contact the uncaring universe (-dev.null@umich.edu) for assistance.
+objectClass: umichPerson
+entityID: 9001
+
+dn: cn=testgroup,ou=Groups,dc=example,dc=com
+cn: testgroup
+cn: testgroup alias
+member: uid=testuser,ou=People,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=testuser,ou=People,dc=example,dc=com
+onVacation: FALSE
+
+dn: cn=vacation group,ou=Groups,dc=example,dc=com
+objectClass: rfc822mailgroup
+owner: uid=flowerysong,ou=People,dc=example,dc=com
+onVacation: TRUE

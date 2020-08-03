@@ -21,14 +21,19 @@ VLU *
 ldap_vlu_init() {
     VLU *         vlu = NULL;
     const char *  uri = NULL;
+    int           protocol = LDAP_VERSION3;
     struct berval credentials = {0};
     int           rc;
 
-    if ((vlu = malloc(sizeof(VLU))) == NULL) {
+    if ((vlu = calloc(1, sizeof(VLU))) == NULL) {
         syslog(LOG_ERR, "vlu_init: malloc error: %m");
         return NULL;
     }
-    memset(vlu, 0, sizeof(VLU));
+
+    if ((vlu->ldap = calloc(1, sizeof(struct vlu_ldap))) == NULL) {
+        syslog(LOG_ERR, "vlu_init: malloc error: %m");
+        return NULL;
+    }
 
     if (!ucl_object_tostring_safe(
                 ucl_object_lookup_path(vac_config, "ldap.search_base"),
@@ -75,6 +80,12 @@ ldap_vlu_init() {
 
     if (ldap_initialize(&(vlu->ldap->ld), uri) != LDAP_SUCCESS) {
         syslog(LOG_INFO, "ldap: ldap_initialize failed");
+        return NULL;
+    }
+
+    if (ldap_set_option(vlu->ldap->ld, LDAP_OPT_PROTOCOL_VERSION, &protocol) !=
+            LDAP_OPT_SUCCESS) {
+        syslog(LOG_ALERT, "ldap: ldap_set_option failed");
         return NULL;
     }
 
