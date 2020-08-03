@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2020-08-03
+
+### Fixed
+- Added `simvacation.conf` to the distributed tarball to fix the build.
+
+
 ## [1.0.0] - 2020-08-03
 
 ### Fixed
