@@ -1,6 +1,26 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2020-08-03
+
+### Fixed
+- Replies to simta group errors addresses are explicitly suppressed, since the
+  heuristics that normally catch these have edge cases.
+- The build system was not correctly adding CFLAGS for library dependencies,
+  resulting in broken builds under certain circumstances.
+
+### Changed
+- simvacation can now be compiled with support for multiple VDB and VLU
+  backends with run-time configuration, instead of relying on compile-time
+  selection of a single backend of each type.
+- The deprecated Berkeley DB backend has been removed.
+- When a display name is not available the From header will leave it out
+  entirely, instead of using the uniqname as a placeholder.
+
+### Added
+- Basic unit and integration tests using pytest and CMocka.
+
+
 ## [0.12.0] - 2018-09-14
 
 ### Fixed
