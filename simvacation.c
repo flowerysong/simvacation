@@ -382,7 +382,7 @@ pretty_sender(const char *sender, const char *sender_name) {
     const char *domain = ucl_object_tostring(
             ucl_object_lookup_path(vac_config, "core.domain"));
 
-    if (sender_name) {
+    if (sender_name && (strcasecmp(sender_name, sender) != 0)) {
         retval = yaslcatprintf(
                 retval, "\"%s\" <%s@%s>", sender_name, sender, domain);
     } else {

@@ -64,7 +64,7 @@ def test_simple(run_simvacation, testmsg, tmp_path_factory):
     assert res['args'][2] == ''
     assert res['args'][3] == 'testsender@example.com'
 
-    assert res['content']['from'] == '"testrcpt" <testrcpt@example.com>'
+    assert res['content']['from'] == 'testrcpt@example.com'
     assert res['content']['to'] == 'testsender@example.com'
     assert res['content']['subject'] == 'Out of email contact (Re: simta test message for test_simple)'
     assert res['content']['auto-submitted'] == 'auto-replied'
@@ -100,7 +100,7 @@ def test_ldap_simple(run_simvacation, testmsg, tmp_path_factory):
     testmsg['To'] = 'onvacation@example.com'
     res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt='onvacation')
 
-    assert res['content']['from'] == '"onvacation" <onvacation@example.com>'
+    assert res['content']['from'] == 'onvacation@example.com'
     assert res['content'].get_payload().splitlines() == [
         'I am currently out of email contact.',
         'Your mail will be read when I return.',
