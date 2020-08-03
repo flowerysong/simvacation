@@ -53,7 +53,7 @@ simvacation_SOURCES = simvacation.c $(COMMON_FILES)
 
 simunvacation_SOURCES = simunvacation.c $(COMMON_FILES)
 
-EXTRA_DIST = COPYING.yasl VERSION packaging/rpm/simvacation.spec
+EXTRA_DIST = COPYING.yasl VERSION simvacation.conf packaging/rpm/simvacation.spec
 
 embedded_config.h: genimbed$(EXEEXT) simvacation.conf Makefile
 	./genimbed$(EXEEXT) simvacation.conf CONFIG_BASE > embedded_config.h
