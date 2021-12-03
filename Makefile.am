@@ -2,12 +2,14 @@ ACLOCAL_AMFLAGS = -I m4
 
 SUBDIRS = . test
 
-AM_LDFLAGS = \
-	@LDFLAGS@ \
-	@LDAP_LDFLAGS@ \
+COMMON_LIBS = \
 	$(LIBUCL_LIBS) \
 	$(URCL_LIBS) \
 	@EXTRALIBS@
+
+AM_LDFLAGS = \
+	@LDFLAGS@ \
+	@LDAP_LDFLAGS@
 
 AM_CPPFLAGS = \
 	@CPPFLAGS@ \
@@ -29,8 +31,8 @@ COMMON_FILES = \
 
 if BUILD_CMOCKA
 check_PROGRAMS = test/cmocka_vutil
-test_cmocka_vutil_LDADD = @CMOCKA_LIBS@
 test_cmocka_vutil_SOURCES = test/unit_vutil.c vutil.c vutil.h yasl.c yasl.h
+test_cmocka_vutil_LDADD = $(COMMON_LIBS) @CMOCKA_LIBS@
 endif
 
 if BUILD_LDAP
@@ -48,10 +50,13 @@ endif
 BUILT_SOURCES = embedded_config.h
 
 genimbed_SOURCES = genimbed.c
+genimbed_LDADD = $(COMMON_LIBS)
 
 simvacation_SOURCES = simvacation.c $(COMMON_FILES)
+simvacation_LDADD = $(COMMON_LIBS)
 
 simunvacation_SOURCES = simunvacation.c $(COMMON_FILES)
+simunvacation_LDADD = $(COMMON_LIBS)
 
 EXTRA_DIST = COPYING.yasl VERSION simvacation.conf packaging/rpm/simvacation.spec
 

@@ -7,8 +7,6 @@ import time
 
 from email.parser import Parser as EMailParser
 
-import pytest
-
 
 def _run_simvacation(
     run_simvacation,
@@ -18,7 +16,7 @@ def _run_simvacation(
     rcpt='testrcpt',
 ):
     tmpdir = str(tmp_path_factory.mktemp('mailout'))
-    res = run_simvacation(
+    run_simvacation(
         sender,
         rcpt,
         str(testmsg),
@@ -78,16 +76,16 @@ def test_suppress(run_simvacation, testmsg, tmp_path_factory):
     res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory)
     res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory)
 
-    assert res['args'] == None
-    assert res['content'] == None
+    assert res['args'] is None
+    assert res['content'] is None
 
 
 def test_suppress_interval(run_simvacation, testmsg, tmp_path_factory):
     res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory)
     res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory)
 
-    assert res['args'] == None
-    assert res['content'] == None
+    assert res['args'] is None
+    assert res['content'] is None
 
     time.sleep(2)
     res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory)
@@ -110,8 +108,8 @@ def test_ldap_simple(run_simvacation, testmsg, tmp_path_factory):
 def test_ldap_not_to(run_simvacation, testmsg, tmp_path_factory):
     res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt='onvacation')
 
-    assert res['args'] == None
-    assert res['content'] == None
+    assert res['args'] is None
+    assert res['content'] is None
 
 
 def test_ldap_custom(run_simvacation, testmsg, tmp_path_factory):
@@ -129,5 +127,5 @@ def test_ldap_not_on_vacation(run_simvacation, testmsg, tmp_path_factory):
     testmsg['To'] = 'flowerysong@example.com'
     res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt='flowerysong')
 
-    assert res['args'] == None
-    assert res['content'] == None
+    assert res['args'] is None
+    assert res['content'] is None
