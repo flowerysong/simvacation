@@ -24,7 +24,9 @@ vlu_backend(const char *provider) {
 
     functable->init = vlu_init;
     functable->search = vlu_search;
+    functable->group_search = vlu_group_search;
     functable->message = vlu_message;
+    functable->subject_prefix = vlu_subject_prefix;
     functable->aliases = vlu_aliases;
     functable->name = vlu_name;
     functable->display_name = vlu_display_name;
@@ -34,7 +36,9 @@ vlu_backend(const char *provider) {
 #ifdef HAVE_LDAP
         functable->init = ldap_vlu_init;
         functable->search = ldap_vlu_search;
+        functable->group_search = ldap_vlu_group_search;
         functable->message = ldap_vlu_message;
+        functable->subject_prefix = ldap_vlu_subject_prefix;
         functable->aliases = ldap_vlu_aliases;
         functable->name = ldap_vlu_name;
         functable->display_name = ldap_vlu_display_name;
@@ -70,6 +74,11 @@ vlu_search(VLU *vlu, const yastr rcpt) {
     return VAC_RESULT_OK;
 }
 
+vac_result
+vlu_group_search(VLU *vlu, const yastr rcpt) {
+    return VAC_RESULT_OK;
+}
+
 ucl_object_t *
 vlu_aliases(VLU *vlu, const yastr rcpt) {
     return ucl_object_fromstring(rcpt);
@@ -78,6 +87,12 @@ vlu_aliases(VLU *vlu, const yastr rcpt) {
 yastr
 vlu_message(VLU *vlu, const yastr rcpt) {
     return NULL;
+}
+
+yastr
+vlu_subject_prefix(VLU *vlu, const yastr rcpt) {
+    return yaslauto(ucl_object_tostring(
+            ucl_object_lookup_path(vac_config, "core.subject_prefix")));
 }
 
 yastr

@@ -13,10 +13,6 @@
 #define HEADER_APPEND 2
 #define HEADER_NOREPLY 3
 
-/* FIXME: move to config file */
-/* FIXME: Add Auto: to Subject? */
-#define SUBJECTPREFIX "Out of email contact"
-
 typedef enum {
     VAC_RESULT_OK,
     VAC_RESULT_TEMPFAIL,

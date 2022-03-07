@@ -24,7 +24,7 @@ struct headers *readheaders(const ucl_object_t *);
 static yastr    pretty_sender(const char *, const char *);
 yastr           append_header(yastr, char *, int);
 int             check_header(char *, const char *);
-int             send_message(yastr, yastr, yastr, yastr, struct headers *);
+int send_message(yastr, yastr, yastr, yastr, yastr, struct headers *);
 
 /* RFC 2822 2.1.1
  *  There are two limits that this standard places on the number of
@@ -120,7 +120,11 @@ main(int argc, char **argv) {
         goto done;
     }
 
-    if ((rc = vlu->search(vluh, rcpt)) != VAC_RESULT_OK) {
+    rc = vlu->search(vluh, rcpt);
+    if (rc == VAC_RESULT_PERMFAIL) {
+        rc = vlu->group_search(vluh, rcpt);
+    }
+    if (rc != VAC_RESULT_OK) {
         if (rc != VAC_RESULT_PERMFAIL) {
             retval = EX_TEMPFAIL;
         }
@@ -145,6 +149,9 @@ main(int argc, char **argv) {
         goto done;
     }
 
+    /* FIXME: need to make it so that the notification period is set from the
+     * VLU, so that it can vary by group.
+     */
     if (vdb->recent(vdbh, canon_from) == VDB_STATUS_RECENT) {
         syslog(LOG_DEBUG, "suppressed message for %s to %s", rcpt, from);
         goto done;
@@ -159,7 +166,7 @@ main(int argc, char **argv) {
     }
 
     retval = send_message(pretty_sender(rcpt, vlu->display_name(vluh, rcpt)),
-            from, canon_from, vacmsg, hdrs);
+            from, canon_from, vacmsg, vlu->subject_prefix(vluh, rcpt), hdrs);
 
     if (retval == EX_OK) {
         syslog(LOG_DEBUG, "sent message for %s to %s", rcpt, from);
@@ -394,7 +401,7 @@ pretty_sender(const char *sender, const char *sender_name) {
 
 int
 send_message(yastr sender, yastr rcpt, yastr canon_rcpt, yastr vmsg,
-        struct headers *h) {
+        yastr subject, struct headers *h) {
     char   hostname[ 255 ];
     int    splitlen;
     yastr *split;
@@ -452,7 +459,7 @@ send_message(yastr sender, yastr rcpt, yastr canon_rcpt, yastr vmsg,
      *  MAY be used as such an indication.  If used, this prefix SHOULD be
      *  followed by an ASCII SPACE character (0x20).
      */
-    printf("Subject: %s", SUBJECTPREFIX);
+    printf("Subject: %s", subject);
     if (yasllen(h->subject) > 0) {
         if (check_header(h->subject, "Re:") != 0) {
             printf(" (Re: %s)", h->subject);

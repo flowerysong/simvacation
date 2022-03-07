@@ -129,3 +129,14 @@ def test_ldap_not_on_vacation(run_simvacation, testmsg, tmp_path_factory):
 
     assert res['args'] is None
     assert res['content'] is None
+
+
+def test_ldap_group_vacation(run_simvacation, testmsg, tmp_path_factory):
+    testmsg['To'] = 'onvacation.group@example.com'
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt='onvacation.group')
+
+    assert res['content']['from'] == '"onvacation group" <onvacation.group@example.com>'
+    assert res['content']['subject'] == 'Automated Reply (Re: simta test message for test_ldap_group_vacation)'
+    assert res['content'].get_payload().splitlines() == [
+        'Messages to this group are not read by humans.',
+    ]

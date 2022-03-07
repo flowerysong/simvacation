@@ -58,15 +58,7 @@ vacationMessage: I am out of the office for till college.$Please contact the unc
 objectClass: umichPerson
 entityID: 9001
 
-dn: cn=testgroup,ou=Groups,dc=example,dc=com
-cn: testgroup
-cn: testgroup alias
-member: uid=testuser,ou=People,dc=example,dc=com
-objectClass: rfc822mailgroup
-owner: uid=testuser,ou=People,dc=example,dc=com
-onVacation: FALSE
-
-dn: cn=vacation group,ou=Groups,dc=example,dc=com
+dn: cn=onvacation group,ou=Groups,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=flowerysong,ou=People,dc=example,dc=com
 onVacation: TRUE

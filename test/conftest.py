@@ -163,6 +163,7 @@ def run_simvacation(request, tmp_path_factory, tool_path):
         config['ldap'] = {
             'uri': server,
             'search_base': 'ou=People,dc=example,dc=com',
+            'group_search_base': 'ou=Groups,dc=example,dc=com',
         }
 
     with open(cfile, 'w') as f:

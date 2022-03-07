@@ -17,6 +17,10 @@
 #include "simvacation.h"
 #include "vlu.h"
 
+static vac_result ldap_vlu_search_common(VLU *, const char *, const char *);
+static bool       ldap_vlu_onvacation(VLU *);
+
+
 VLU *
 ldap_vlu_init() {
     VLU *         vlu = NULL;
@@ -25,13 +29,12 @@ ldap_vlu_init() {
     struct berval credentials = {0};
     int           rc;
 
-    if ((vlu = calloc(1, sizeof(VLU))) == NULL) {
-        syslog(LOG_ERR, "vlu_init: malloc error: %m");
+    if ((vlu = vlu_init()) == NULL) {
         return NULL;
     }
 
     if ((vlu->ldap = calloc(1, sizeof(struct vlu_ldap))) == NULL) {
-        syslog(LOG_ERR, "vlu_init: malloc error: %m");
+        syslog(LOG_ERR, "vlu_init: calloc error: %m");
         return NULL;
     }
 
@@ -42,6 +45,12 @@ ldap_vlu_init() {
         return NULL;
     }
 
+    if (!ucl_object_tostring_safe(
+                ucl_object_lookup_path(vac_config, "ldap.group_search_base"),
+                &(vlu->ldap->group_search_base))) {
+        syslog(LOG_ERR, "vlu_init: ucl_object_tostring_safe failed");
+        return NULL;
+    }
 
     if (!ucl_object_tostring_safe(
                 ucl_object_lookup_path(vac_config, "ldap.attributes.vacation"),
@@ -50,12 +59,23 @@ ldap_vlu_init() {
         return NULL;
     }
 
+    vlu->ldap->default_msg = yaslauto(ucl_object_tostring(
+            ucl_object_lookup_path(vac_config, "core.default_message")));
+
     if (!ucl_object_tostring_safe(ucl_object_lookup_path(vac_config,
                                           "ldap.attributes.vacation_message"),
                 &(vlu->ldap->attr_vacation_msg))) {
         syslog(LOG_ERR, "vlu_init: ucl_object_tostring_safe failed");
         return NULL;
     }
+
+    if (!ucl_object_tostring_safe(ucl_object_lookup_path(vac_config,
+                                          "ldap.attributes.group_message"),
+                &(vlu->ldap->attr_group_msg))) {
+        syslog(LOG_ERR, "vlu_init: ucl_object_tostring_safe failed");
+        return NULL;
+    }
+
 
     if (!ucl_object_tostring_safe(
                 ucl_object_lookup_path(vac_config, "ldap.attributes.name"),
@@ -64,11 +84,12 @@ ldap_vlu_init() {
         return NULL;
     }
 
-    vlu->ldap->attrs = calloc(4, sizeof(char *));
+    vlu->ldap->attrs = calloc(6, sizeof(char *));
     vlu->ldap->attrs[ 0 ] = strdup("cn");
     vlu->ldap->attrs[ 1 ] = strdup(vlu->ldap->attr_vacation);
     vlu->ldap->attrs[ 2 ] = strdup(vlu->ldap->attr_vacation_msg);
     vlu->ldap->attrs[ 3 ] = strdup(vlu->ldap->attr_name);
+    vlu->ldap->attrs[ 4 ] = strdup(vlu->ldap->attr_group_msg);
 
     vlu->ldap->timeout.tv_sec = 30;
 
@@ -99,17 +120,32 @@ ldap_vlu_init() {
     return vlu;
 }
 
-vac_result
-ldap_vlu_search(VLU *vlu, const yastr rcpt) {
-    char            filter[ 64 ];
-    int             rc, retval, matches;
-    LDAPMessage *   result;
-    struct berval **vacstatus;
 
-    sprintf(filter, "uid=%s", rcpt);
-    rc = ldap_search_ext_s(vlu->ldap->ld, vlu->ldap->search_base,
-            LDAP_SCOPE_SUBTREE, filter, vlu->ldap->attrs, 0, NULL, NULL,
-            &vlu->ldap->timeout, 0, &result);
+static bool
+ldap_vlu_onvacation(VLU *vlu) {
+    struct berval **bv_status;
+
+    bv_status = ldap_get_values_len(
+            vlu->ldap->ld, vlu->ldap->result, vlu->ldap->attr_vacation);
+
+    if (bv_status && (bv_status[ 0 ]->bv_len == 4) &&
+            (strncasecmp(bv_status[ 0 ]->bv_val, "TRUE", 4) == 0)) {
+        return true;
+    }
+
+    return false;
+}
+
+
+static vac_result
+ldap_vlu_search_common(VLU *vlu, const char *filter, const char *search_base) {
+    int          rc, matches;
+    int          retval = VAC_RESULT_OK;
+    LDAPMessage *result;
+
+    rc = ldap_search_ext_s(vlu->ldap->ld, search_base, LDAP_SCOPE_SUBTREE,
+            filter, vlu->ldap->attrs, 0, NULL, NULL, &vlu->ldap->timeout, 0,
+            &result);
 
     switch (rc) {
     case LDAP_SUCCESS:
@@ -125,8 +161,9 @@ ldap_vlu_search(VLU *vlu, const yastr rcpt) {
     default:
         retval = VAC_RESULT_PERMFAIL;
     }
-    if (rc != LDAP_SUCCESS) {
-        syslog(LOG_ALERT, "vlu_search: ldap_search failed: %s",
+
+    if (retval != VAC_RESULT_OK) {
+        syslog(LOG_ALERT, "vlu_search_common: ldap_search failed: %s",
                 ldap_err2string(rc));
         return retval;
     }
@@ -134,29 +171,76 @@ ldap_vlu_search(VLU *vlu, const yastr rcpt) {
     matches = ldap_count_entries(vlu->ldap->ld, result);
 
     if (matches > 1) {
-        syslog(LOG_ALERT, "vlu_search: multiple matches for %s", rcpt);
+        syslog(LOG_ALERT, "vlu_search_common: multiple matches for %s in %s",
+                filter, search_base);
         return VAC_RESULT_PERMFAIL;
     } else if (matches == 0) {
-        syslog(LOG_ALERT, "vlu_search: no match for %s", rcpt);
+        syslog(LOG_ALERT, "vlu_search_common: no match for %s in %s", filter,
+                search_base);
         return VAC_RESULT_PERMFAIL;
     }
 
     vlu->ldap->result = ldap_first_entry(vlu->ldap->ld, result);
 
-    vacstatus = ldap_get_values_len(
-            vlu->ldap->ld, vlu->ldap->result, vlu->ldap->attr_vacation);
+    return retval;
+}
 
-    if (vacstatus && (vacstatus[ 0 ]->bv_len == 4) &&
-            (strncasecmp(vacstatus[ 0 ]->bv_val, "TRUE", 4) == 0)) {
-        syslog(LOG_DEBUG, "vlu_search: user %s on vacation", rcpt);
-    } else {
-        /* User is no longer on vacation */
-        syslog(LOG_INFO, "vlu_search: user %s is not on vacation", rcpt);
-        return VAC_RESULT_PERMFAIL;
+
+vac_result
+ldap_vlu_search(VLU *vlu, const yastr rcpt) {
+    char filter[ 64 ];
+    int  retval;
+
+    sprintf(filter, "uid=%s", rcpt);
+    retval = ldap_vlu_search_common(vlu, filter, vlu->ldap->search_base);
+
+    if (retval == VAC_RESULT_OK) {
+        if (ldap_vlu_onvacation(vlu)) {
+            vlu->ldap->attr_msg = vlu->ldap->attr_vacation_msg;
+            vlu->ldap->subject_prefix = yaslauto(ucl_object_tostring(
+                    ucl_object_lookup_path(vac_config, "core.subject_prefix")));
+            syslog(LOG_DEBUG, "vlu_search: user %s on vacation", rcpt);
+        } else {
+            syslog(LOG_INFO, "vlu_search: user %s is not on vacation", rcpt);
+            retval = VAC_RESULT_PERMFAIL;
+        }
     }
 
-    return VAC_RESULT_OK;
+    return retval;
 }
+
+vac_result
+ldap_vlu_group_search(VLU *vlu, const yastr rcpt) {
+    yastr filter;
+    int   retval;
+
+    /* Replace space equivalent characters with spaces. */
+    filter = yaslauto("cn=");
+    filter = yaslcatyasl(filter, rcpt);
+    yaslmapchars(filter, "._", "  ", 2);
+    retval = ldap_vlu_search_common(vlu, filter, vlu->ldap->group_search_base);
+
+    if (retval == VAC_RESULT_OK) {
+        if (ldap_vlu_onvacation(vlu)) {
+            vlu->ldap->attr_msg = vlu->ldap->attr_group_msg;
+            vlu->ldap->default_msg =
+                    yaslauto(ucl_object_tostring(ucl_object_lookup_path(
+                            vac_config, "core.default_group_message")));
+            vlu->ldap->subject_prefix =
+                    yaslauto(ucl_object_tostring(ucl_object_lookup_path(
+                            vac_config, "core.group_subject_prefix")));
+            syslog(LOG_DEBUG,
+                    "vlu_group_search: group %s has autoreplies enabled", rcpt);
+        } else {
+            syslog(LOG_INFO, "vlu_group_search: group %s does not autoreply",
+                    rcpt);
+            retval = VAC_RESULT_PERMFAIL;
+        }
+    }
+
+    return retval;
+}
+
 
 ucl_object_t *
 ldap_vlu_aliases(VLU *vlu, const yastr rcpt) {
@@ -184,8 +268,8 @@ ldap_vlu_message(VLU *vlu, const yastr rcpt) {
     yastr           vacmsg;
 
     if ((rawmsg = ldap_get_values_len(vlu->ldap->ld, vlu->ldap->result,
-                 vlu->ldap->attr_vacation_msg)) == NULL) {
-        return NULL;
+                 vlu->ldap->attr_msg)) == NULL) {
+        return vlu->ldap->default_msg;
     }
 
     vacmsg = yaslempty();
@@ -197,6 +281,11 @@ ldap_vlu_message(VLU *vlu, const yastr rcpt) {
     yaslmapchars(vacmsg, "$", "\n", 1);
 
     return vacmsg;
+}
+
+yastr
+ldap_vlu_subject_prefix(VLU *vlu, const yastr rcpt) {
+    return vlu->ldap->subject_prefix;
 }
 
 yastr
