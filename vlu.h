@@ -20,6 +20,8 @@ struct vlu_ldap {
     const char *   attr_group_msg;
     const char *   attr_name;
     const char *   attr_msg;
+    const char *   attr_autoreply_start;
+    const char *   attr_autoreply_end;
     const char *   search_base;
     const char *   group_search_base;
     char **        attrs;

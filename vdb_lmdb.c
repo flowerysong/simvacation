@@ -3,14 +3,14 @@
  * See COPYING.
  */
 
-
-#include <sys/param.h>
+#include <config.h>
 
 #include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/param.h>
 #include <sysexits.h>
 #include <syslog.h>
 #include <time.h>

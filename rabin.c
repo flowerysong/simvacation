@@ -25,6 +25,7 @@
  * fingerprint is not cryptographically secure.
  */
 
+#include <config.h>
 
 #include "rabin.h"
 

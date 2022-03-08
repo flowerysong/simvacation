@@ -7,6 +7,8 @@ import time
 
 from email.parser import Parser as EMailParser
 
+import pytest
+
 
 def _run_simvacation(
     run_simvacation,
@@ -128,6 +130,34 @@ def test_ldap_not_on_vacation(run_simvacation, testmsg, tmp_path_factory):
     res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt='flowerysong')
 
     assert res['args'] is None
+    assert res['content'] is None
+
+
+@pytest.mark.parametrize(
+    'rcpt',
+    [
+        'autoreply',
+        'autoreplyend',
+    ],
+)
+def test_ldap_autoreply(run_simvacation, testmsg, tmp_path_factory, rcpt):
+    testmsg['To'] = rcpt + '@example.com'
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt=rcpt)
+    assert res['content'] is not None
+
+
+@pytest.mark.parametrize(
+    'rcpt',
+    [
+        'autoreplypast',
+        'autoreplynostart',
+        'autoreplyfuturestart',
+        'autoreplyfuture',
+    ],
+)
+def test_ldap_noautoreply(run_simvacation, testmsg, tmp_path_factory, rcpt):
+    testmsg['To'] = rcpt + '@example.com'
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt=rcpt)
     assert res['content'] is None
 
 

@@ -18,6 +18,8 @@ AC_DEFINE_UNQUOTED(LOG_VACATION, [$with_syslog], [syslog facility])
 AC_PROG_CC
 AC_PROG_CC_C99
 
+AC_USE_SYSTEM_EXTENSIONS
+
 # Checks for libraries.
 PKG_CHECK_MODULES([LIBUCL], [libucl])
 
@@ -45,6 +47,7 @@ AC_HEADER_TIME
 # Checks for library functions.
 AC_FUNC_CLOSEDIR_VOID
 AC_FUNC_MALLOC
+AC_FUNC_MKTIME
 AC_FUNC_FORK
 AC_CHECK_FUNCS([dup2 memset strcasecmp strdup strerror strncasecmp strrchr])
 

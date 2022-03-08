@@ -3,6 +3,8 @@
  * See COPYING.
  */
 
+#include <config.h>
+
 #include <sysexits.h>
 #include <syslog.h>
 #include <unistd.h>

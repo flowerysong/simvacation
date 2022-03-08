@@ -5,7 +5,6 @@
 
 #include <ucl.h>
 
-#include "config.h"
 #include "yasl.h"
 
 #define HEADER_UNKNOWN 0

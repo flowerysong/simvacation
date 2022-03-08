@@ -3,8 +3,10 @@
  * See COPYING.
  */
 
+#include <config.h>
 
 #include <ctype.h>
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,9 +19,9 @@
 #include "simvacation.h"
 #include "vlu.h"
 
-static vac_result ldap_vlu_search_common(VLU *, const char *, const char *);
 static bool       ldap_vlu_onvacation(VLU *);
-
+static vac_result ldap_vlu_search_common(VLU *, const char *, const char *);
+static time_t     ldap_vlu_time(struct berval *);
 
 VLU *
 ldap_vlu_init() {
@@ -59,6 +61,21 @@ ldap_vlu_init() {
         return NULL;
     }
 
+    if (!ucl_object_tostring_safe(ucl_object_lookup_path(vac_config,
+                                          "ldap.attributes.autoreply_start"),
+                &(vlu->ldap->attr_autoreply_start))) {
+        syslog(LOG_ERR, "vlu_init: ucl_object_tostring_safe failed");
+        return NULL;
+    }
+
+    if (!ucl_object_tostring_safe(ucl_object_lookup_path(vac_config,
+                                          "ldap.attributes.autoreply_end"),
+                &(vlu->ldap->attr_autoreply_end))) {
+        syslog(LOG_ERR, "vlu_init: ucl_object_tostring_safe failed");
+        return NULL;
+    }
+
+
     vlu->ldap->default_msg = yaslauto(ucl_object_tostring(
             ucl_object_lookup_path(vac_config, "core.default_message")));
 
@@ -84,12 +101,14 @@ ldap_vlu_init() {
         return NULL;
     }
 
-    vlu->ldap->attrs = calloc(6, sizeof(char *));
+    vlu->ldap->attrs = calloc(8, sizeof(char *));
     vlu->ldap->attrs[ 0 ] = strdup("cn");
     vlu->ldap->attrs[ 1 ] = strdup(vlu->ldap->attr_vacation);
     vlu->ldap->attrs[ 2 ] = strdup(vlu->ldap->attr_vacation_msg);
     vlu->ldap->attrs[ 3 ] = strdup(vlu->ldap->attr_name);
     vlu->ldap->attrs[ 4 ] = strdup(vlu->ldap->attr_group_msg);
+    vlu->ldap->attrs[ 5 ] = strdup(vlu->ldap->attr_autoreply_start);
+    vlu->ldap->attrs[ 6 ] = strdup(vlu->ldap->attr_autoreply_end);
 
     vlu->ldap->timeout.tv_sec = 30;
 
@@ -120,20 +139,96 @@ ldap_vlu_init() {
     return vlu;
 }
 
+static time_t
+ldap_vlu_time(struct berval *bv_time) {
+    yastr     buf;
+    time_t    retval = 0;
+    struct tm tm_time;
+    char *    tz;
+
+    memset(&tm_time, 0, sizeof(struct tm));
+    buf = yaslnew(bv_time->bv_val, bv_time->bv_len);
+
+    if ((strptime(buf, "%Y%m%d%H%M%S", &tm_time) != NULL) ||
+            (strptime(buf, "%Y%m%d%H%M", &tm_time) != NULL) ||
+            (strptime(buf, "%Y%m%d%H", &tm_time) != NULL)) {
+        /* We're going to assume that everything is UTC, as the gods intended.*/
+        if ((tz = getenv("TZ")) != NULL) {
+            tz = strdup(tz);
+        }
+        setenv("TZ", "", 1);
+        tzset();
+        retval = mktime(&tm_time);
+        if (tz) {
+            setenv("TZ", tz, 1);
+            free(tz);
+        } else {
+            unsetenv("TZ");
+        }
+        tzset();
+    } else {
+        syslog(LOG_ERR, "vlu_ldap: strptime unable to parse %s", buf);
+    }
+
+    yaslfree(buf);
+    return retval;
+}
+
 
 static bool
 ldap_vlu_onvacation(VLU *vlu) {
+    bool            retval = false;
     struct berval **bv_status;
+    time_t          time;
+    struct timespec ts_now;
+#ifdef CLOCK_REALTIME_COARSE
+    clockid_t clock = CLOCK_REALTIME_COARSE;
+#else
+    clockid_t clock = CLOCK_REALTIME;
+#endif /* CLOCK_REALTIME_COARSE */
 
     bv_status = ldap_get_values_len(
             vlu->ldap->ld, vlu->ldap->result, vlu->ldap->attr_vacation);
 
-    if (bv_status && (bv_status[ 0 ]->bv_len == 4) &&
-            (strncasecmp(bv_status[ 0 ]->bv_val, "TRUE", 4) == 0)) {
-        return true;
+    if (bv_status) {
+        if ((bv_status[ 0 ]->bv_len == 4) &&
+                (strncasecmp(bv_status[ 0 ]->bv_val, "TRUE", 4) == 0)) {
+            retval = true;
+        }
+        ldap_value_free_len(bv_status);
     }
 
-    return false;
+    if (clock_gettime(clock, &ts_now) != 0) {
+        syslog(LOG_ALERT, "vlu_ldap: clock_gettime failed: %s",
+                strerror(errno));
+        return false;
+    }
+
+    if (!retval) {
+        bv_status = ldap_get_values_len(vlu->ldap->ld, vlu->ldap->result,
+                vlu->ldap->attr_autoreply_start);
+        if (bv_status) {
+            time = ldap_vlu_time(bv_status[ 0 ]);
+            ldap_value_free_len(bv_status);
+            if (time > 0 && ts_now.tv_sec > time) {
+                retval = true;
+            }
+        }
+    }
+
+    if (retval) {
+        bv_status = ldap_get_values_len(vlu->ldap->ld, vlu->ldap->result,
+                vlu->ldap->attr_autoreply_end);
+        if (bv_status) {
+            time = ldap_vlu_time(bv_status[ 0 ]);
+            ldap_value_free_len(bv_status);
+            if (time > 0 && ts_now.tv_sec > time) {
+                retval = false;
+            }
+        }
+    }
+
+    return retval;
 }
 
 
