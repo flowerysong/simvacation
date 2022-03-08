@@ -36,8 +36,11 @@ Tests can be run with `make check`. simvacation's test suite requires
 want to install [cmocka](https://cmocka.org/) and pass `--with-cmocka`
 to the `configure` script to enable additional unit tests.
 
+Some tests require spawning an ephemeral redis instance. If
+`redis-server` is not found these tests will be skipped.
+
 Some tests require an LDAP server with [a specific set of
-data](test/ldap/README.md); if the `LDAP_SERVER` environment variable
+data](test/ldap/README.md). If the `LDAP_SERVER` environment variable
 is not set these tests will be skipped. If you haven't set up LDAP
 correctly, these tests will fail.
 
