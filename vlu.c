@@ -29,6 +29,7 @@ vlu_backend(const char *provider) {
     functable->group_search = vlu_group_search;
     functable->message = vlu_message;
     functable->subject_prefix = vlu_subject_prefix;
+    functable->interval = vlu_interval;
     functable->aliases = vlu_aliases;
     functable->name = vlu_name;
     functable->display_name = vlu_display_name;
@@ -41,6 +42,7 @@ vlu_backend(const char *provider) {
         functable->group_search = ldap_vlu_group_search;
         functable->message = ldap_vlu_message;
         functable->subject_prefix = ldap_vlu_subject_prefix;
+        functable->interval = ldap_vlu_interval;
         functable->aliases = ldap_vlu_aliases;
         functable->name = ldap_vlu_name;
         functable->display_name = ldap_vlu_display_name;
@@ -95,6 +97,12 @@ yastr
 vlu_subject_prefix(VLU *vlu, const yastr rcpt) {
     return yaslauto(ucl_object_tostring(
             ucl_object_lookup_path(vac_config, "core.subject_prefix")));
+}
+
+time_t
+vlu_interval(VLU *vlu, const yastr rcpt) {
+    return (time_t)ucl_object_todouble(
+            ucl_object_lookup_path(vac_config, "core.interval"));
 }
 
 yastr

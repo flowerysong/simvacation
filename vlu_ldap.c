@@ -294,6 +294,8 @@ ldap_vlu_search(VLU *vlu, const yastr rcpt) {
             vlu->ldap->attr_msg = vlu->ldap->attr_vacation_msg;
             vlu->ldap->subject_prefix = yaslauto(ucl_object_tostring(
                     ucl_object_lookup_path(vac_config, "core.subject_prefix")));
+            vlu->ldap->interval = (time_t)ucl_object_todouble(
+                    ucl_object_lookup_path(vac_config, "core.interval"));
             syslog(LOG_DEBUG, "vlu_search: user %s on vacation", rcpt);
         } else {
             syslog(LOG_INFO, "vlu_search: user %s is not on vacation", rcpt);
@@ -324,6 +326,8 @@ ldap_vlu_group_search(VLU *vlu, const yastr rcpt) {
             vlu->ldap->subject_prefix =
                     yaslauto(ucl_object_tostring(ucl_object_lookup_path(
                             vac_config, "core.group_subject_prefix")));
+            vlu->ldap->interval = (time_t)ucl_object_todouble(
+                    ucl_object_lookup_path(vac_config, "core.group_interval"));
             syslog(LOG_DEBUG,
                     "vlu_group_search: group %s has autoreplies enabled", rcpt);
         } else {
@@ -381,6 +385,11 @@ ldap_vlu_message(VLU *vlu, const yastr rcpt) {
 yastr
 ldap_vlu_subject_prefix(VLU *vlu, const yastr rcpt) {
     return vlu->ldap->subject_prefix;
+}
+
+time_t
+ldap_vlu_interval(VLU *vlu, const yastr rcpt) {
+    return vlu->ldap->interval;
 }
 
 yastr

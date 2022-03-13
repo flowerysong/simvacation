@@ -75,14 +75,8 @@ vdb_close(VDB *vdb) {
 }
 
 vdb_status
-vdb_recent(VDB *vdb, const yastr from) {
+vdb_recent(VDB *vdb, const yastr from, time_t interval) {
     return VDB_STATUS_OK;
-}
-
-time_t
-vdb_interval() {
-    return (time_t)ucl_object_todouble(
-            ucl_object_lookup_path(vac_config, "core.interval"));
 }
 
 vac_result

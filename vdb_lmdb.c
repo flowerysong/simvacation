@@ -73,7 +73,6 @@ error:
 void
 lmdb_vdb_assert(MDB_env *dbenv, const char *msg) {
     syslog(LOG_ALERT, "lmdb assert: %s", msg);
-    /* FIXME: is this the correct action? */
     exit(EX_TEMPFAIL);
 }
 
@@ -88,7 +87,7 @@ lmdb_vdb_close(VDB *vdb) {
 }
 
 vdb_status
-lmdb_vdb_recent(VDB *vdb, const yastr from) {
+lmdb_vdb_recent(VDB *vdb, const yastr from, time_t interval) {
     int      rc, retval = VDB_STATUS_OK;
     time_t   last, now;
     MDB_txn *txn;
@@ -131,7 +130,7 @@ lmdb_vdb_recent(VDB *vdb, const yastr from) {
 
     if ((now = time(NULL)) < 0) {
         syslog(LOG_ALERT, "lmdb vdb_recent time: %m");
-    } else if (now < (last + vdb_interval())) {
+    } else if (now < (last + interval)) {
         retval = VDB_STATUS_RECENT;
     }
 
@@ -204,7 +203,8 @@ lmdb_vdb_gc(VDB *vdb) {
         return;
     }
 
-    expire = expire - vdb_interval();
+    /* Clean up entries older than 7 days. */
+    expire = expire - 604800;
 
     if ((rc = mdb_txn_begin(vdb->lmdb, NULL, 0, &txn)) != 0) {
         syslog(LOG_ALERT, "lmdb vdb_gc mdb_txn_begin: %s", mdb_strerror(rc));

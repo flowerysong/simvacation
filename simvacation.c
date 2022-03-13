@@ -150,10 +150,8 @@ main(int argc, char **argv) {
         goto done;
     }
 
-    /* FIXME: need to make it so that the notification period is set from the
-     * VLU, so that it can vary by group.
-     */
-    if (vdb->recent(vdbh, canon_from) == VDB_STATUS_RECENT) {
+    if (vdb->recent(vdbh, canon_from, vlu->interval(vluh, rcpt)) ==
+            VDB_STATUS_RECENT) {
         syslog(LOG_DEBUG, "suppressed message for %s to %s", rcpt, from);
         goto done;
     }

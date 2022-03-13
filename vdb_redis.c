@@ -72,7 +72,7 @@ redis_vdb_close(VDB *vdb) {
 }
 
 vdb_status
-redis_vdb_recent(VDB *vdb, const yastr from) {
+redis_vdb_recent(VDB *vdb, const yastr from, time_t interval) {
     int         retval = VDB_STATUS_OK;
     time_t      last, now;
     yastr       key;
@@ -91,7 +91,7 @@ redis_vdb_recent(VDB *vdb, const yastr from) {
 
     if ((now = time(NULL)) < 0) {
         syslog(LOG_ALERT, "redis vdb_recent time: %m");
-    } else if (now < (last + vdb_interval())) {
+    } else if (now < (last + interval)) {
         retval = VDB_STATUS_RECENT;
     } else {
         /* This shouldn't happen, so let's clean it up */
@@ -109,7 +109,6 @@ redis_vdb_store_reply(VDB *vdb, const yastr from) {
     time_t now;
     yastr  key;
     char   value[ 16 ];
-    char   expire[ 16 ];
 
     if ((now = time(NULL)) < 0) {
         syslog(LOG_ALERT, "redis vdb_store_reply time: %m");
@@ -118,11 +117,10 @@ redis_vdb_store_reply(VDB *vdb, const yastr from) {
 
     key = redis_vdb_key(vdb->rcpt, from);
     snprintf(value, 16, "%lld", (long long)now);
-    snprintf(expire, 16, "%lld", (long long)vdb_interval());
 
     urcl_free_result(urcl_command(vdb->redis, key, "SET %s %s", key, value));
-    urcl_free_result(
-            urcl_command(vdb->redis, key, "EXPIRE %s %s", key, expire));
+    /* expire entries after 7 days. */
+    urcl_free_result(urcl_command(vdb->redis, key, "EXPIRE %s 604800", key));
 
     return VAC_RESULT_OK;
 }
