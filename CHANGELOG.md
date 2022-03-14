@@ -1,6 +1,24 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - 2022-??-??
+
+### Fixed
+- Fixed some build issues related to CLI ordering.
+- Fixed possible use of uninitialized variable.
+- The CMocka/pytest integration has been updated to work properly with
+  pytest 7.x.
+
+### Changed
+- The default reply interval has been changed to three days, to match the
+  production config.
+
+### Added
+- The subject prefix is now configurable at runtime.
+- The LDAP lookup now supports autoreplies for groups.
+- The LDAP lookup now supports specification of start and end times for
+  autoreplies in addition to the boolean flag.
+
 ## [1.0.1] - 2020-08-03
 
 ### Fixed
