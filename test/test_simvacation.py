@@ -168,5 +168,6 @@ def test_ldap_group_vacation(run_simvacation, testmsg, tmp_path_factory):
     assert res['content']['from'] == '"onvacation group" <onvacation.group@example.com>'
     assert res['content']['subject'] == 'Automated Reply (Re: simta test message for test_ldap_group_vacation)'
     assert res['content'].get_payload().splitlines() == [
-        'Messages to this group are not read by humans.',
+        'Messages to this group are not monitored.',
+        'You may want to try a different contact method.',
     ]
