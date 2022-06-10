@@ -1,6 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - ????-??-??
+
+### Fixed
+
+### Changed
+
+### Added
+
+
 ## [1.1.0] - 2022-06-10
 
 ### Fixed
@@ -18,6 +27,7 @@ All notable changes to this project will be documented in this file.
 - The LDAP lookup now supports autoreplies for groups.
 - The LDAP lookup now supports specification of start and end times for
   autoreplies in addition to the boolean flag.
+
 
 ## [1.0.1] - 2020-08-03
 
