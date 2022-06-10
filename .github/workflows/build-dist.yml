@@ -1,0 +1,59 @@
+name: build-dist
+on:
+  push:
+    tags:
+      - "*.*.*"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+        with:
+          path: simvacation
+          fetch-depth: 0
+
+      - name: apt update
+        run: sudo apt update
+
+      - name: Install dependencies
+        run: sudo apt install libbsd-dev libjemalloc-dev libssl-dev liblmdb-dev libldap2-dev libcmocka-dev slapd ldap-utils redis-server libhiredis-dev
+
+      - name: Cache built dependencies
+        uses: actions/cache@v2
+        id: cache-deps
+        with:
+          path: ${{ github.workspace }}/.deps
+          key: deps-${{ hashFiles('simta/.github/workflows/**') }}
+
+      - name: Install fpm
+        run: sudo gem install --no-document fpm
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Build libucl
+        uses: flowerysong/gh-build-deb@v1
+        with:
+          src: -b 0.8.1 https://github.com/vstakhov/libucl
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Build urcl
+        uses: flowerysong/gh-build-deb@v1
+        with:
+          src: https://github.com/simta/urcl
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+
+      - name: Install built dependencies
+        run: sudo dpkg -R -i ${{ github.workspace }}/.deps
+
+      - name: Build dist tarball
+        run: |
+          autoreconf -fiv
+          ./configure
+          make dist
+        working-directory: ${{ github.workspace }}/simvacation
+
+      - name: Save dist tarball
+        uses: actions/upload-artifact@v2
+        with:
+          name: dist
+          path: ${{ github.workspace }}/simvacation/simvacation-*.tar.xz
