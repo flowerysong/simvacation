@@ -1,7 +1,7 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] - 2022-??-??
+## [1.1.0] - 2022-06-10
 
 ### Fixed
 - Fixed some build issues related to CLI ordering.
