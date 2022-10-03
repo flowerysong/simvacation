@@ -30,7 +30,7 @@ class CMockaFile(pytest.File):
         lines = out.stdout.splitlines()
         plan = lines[0].split('..')
         if len(plan) != 2:
-            yield(CMockaItem.from_parent(self, line='not ok - cmocka', output=out.stdout))
+            yield CMockaItem.from_parent(self, line='not ok - cmocka', output=out.stdout)
             plan = ('', '0')
 
         count = 0
@@ -41,7 +41,7 @@ class CMockaFile(pytest.File):
             yield CMockaItem.from_parent(self, line=line, output=out.stdout)
 
         if count != int(plan[1]):
-            yield(CMockaItem.from_parent(self, line='not ok - cmocka_tap_plan', output=out.stdout))
+            yield CMockaItem.from_parent(self, line='not ok - cmocka_tap_plan', output=out.stdout)
 
 
 class CMockaItem(pytest.Item):
@@ -100,10 +100,10 @@ def redis():
                     raise
                 time.sleep(0.1)
 
-        return({
+        return {
             'port': port,
             'proc': redis_proc,
-        })
+        }
 
 
 @pytest.fixture(scope='session')
