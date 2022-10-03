@@ -58,6 +58,32 @@ vacationMessage: I am out of the office for till college.$Please contact the unc
 objectClass: umichPerson
 entityID: 9001
 
+dn: uid=customvacationnewline,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+displayName: Testy User
+sn: User
+uid: customvacationnewline
+mail: customvacationnewline@example.com
+mailForwardingAddress: customvacationnewline@forwarded.example.com
+onvacation: TRUE
+vacationMessage:: VGhpcyB2YWNhdGlvbiBtZXNzYWdlIGhhcyBhbiBlbWJlZGRlZCBuZXdsaW5lLgpJc24ndCBpdCBrZWVuPw==
+objectClass: umichPerson
+entityID: 9001
+
+dn: uid=customvacationdos,ou=People,dc=example,dc=com
+cn: Test User
+givenName: Testament
+displayName: Testy User
+sn: User
+uid: customvacationdos
+mail: customvacationdos@example.com
+mailForwardingAddress: customvacationdos@forwarded.example.com
+onvacation: TRUE
+vacationMessage:: VGhpcyB2YWNhdGlvbiBtZXNzYWdlIGhhcyBhbiBlbWJlZGRlZCBET1MgbmV3bGluZS4NCklzbid0IGl0IGtlZW4/
+objectClass: umichPerson
+entityID: 9001
+
 dn: cn=onvacation group,ou=Groups,dc=example,dc=com
 objectClass: rfc822mailgroup
 owner: uid=flowerysong,ou=People,dc=example,dc=com

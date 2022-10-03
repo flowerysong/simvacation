@@ -125,6 +125,28 @@ def test_ldap_custom(run_simvacation, testmsg, tmp_path_factory):
     ]
 
 
+def test_ldap_custom_newline(run_simvacation, testmsg, tmp_path_factory):
+    testmsg['To'] = 'customvacationnewline@example.com'
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt='customvacationnewline')
+
+    assert res['content']['from'] == '"Testy User" <customvacationnewline@example.com>'
+    assert res['content'].get_payload().splitlines() == [
+        'This vacation message has an embedded newline.',
+        "Isn't it keen?",
+    ]
+
+
+def test_ldap_custom_newline_dos(run_simvacation, testmsg, tmp_path_factory):
+    testmsg['To'] = 'customvacationdos@example.com'
+    res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt='customvacationdos')
+
+    assert res['content']['from'] == '"Testy User" <customvacationdos@example.com>'
+    assert res['content'].get_payload().splitlines() == [
+        'This vacation message has an embedded DOS newline.',
+        "Isn't it keen?",
+    ]
+
+
 def test_ldap_not_on_vacation(run_simvacation, testmsg, tmp_path_factory):
     testmsg['To'] = 'flowerysong@example.com'
     res = _run_simvacation(run_simvacation, testmsg, tmp_path_factory, rcpt='flowerysong')
